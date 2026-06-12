@@ -3,38 +3,73 @@ import { loadFromDrive, saveToDrive } from "../utils/driveApi";
 import { toSlug } from "../utils/helpers";
 
 const DEBOUNCE_MS = 1500;
+const CACHE_KEY   = "flow_cache";
+
+const readCache  = () => {
+  try {
+    const raw = localStorage.getItem(CACHE_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch { return null; }
+};
+
+const writeCache = (tasks, sections) => {
+  try {
+    localStorage.setItem(CACHE_KEY, JSON.stringify({ tasks, sections }));
+  } catch { /* storage full — ignore */ }
+};
+
+const clearCache = () => {
+  try { localStorage.removeItem(CACHE_KEY); } catch { /* ignore */ }
+};
 
 export default function useDriveSync(accessToken, showToast) {
-  const [tasks,      setTasks]      = useState([]);
-  const [sections,   setSections]   = useState([]);
-  const [syncStatus, setSyncStatus] = useState("idle");
+  // Seed state from cache so the UI is instant on reload
+  const cached = readCache();
+  const [tasks,      setTasks]      = useState(cached?.tasks    ?? []);
+  const [sections,   setSections]   = useState(cached?.sections ?? []);
+  const [syncStatus, setSyncStatus] = useState(cached ? "idle" : "loading");
 
   const fileIdRef = useRef(null);
   const saveTimer = useRef(null);
+  const loadedRef = useRef(false);
 
-  // ── Initial load ──────────────────────────────────────────────────────────
+  // ── Wrap setters so every mutation also updates the cache ─────────────────
+  const setTasksAndCache = useCallback((t) => {
+    setTasks(t);
+    setSections((s) => { writeCache(t, s); return s; });
+  }, []);
+
+  const setSectionsAndCache = useCallback((s) => {
+    setSections(s);
+    setTasks((t) => { writeCache(t, s); return t; });
+  }, []);
+
+  // ── Load from Drive once — runs in background if cache already populated ──
   useEffect(() => {
-    if (!accessToken) return;
+    if (!accessToken || loadedRef.current) return;
+    loadedRef.current = true;
+
+    // Only show the loading indicator if there's nothing cached yet
+    if (!readCache()) setSyncStatus("loading");
 
     let cancelled = false;
-    setSyncStatus("loading");
 
     loadFromDrive(accessToken)
       .then(({ tasks: t, sections: s, fileId }) => {
         if (cancelled) return;
         fileIdRef.current = fileId;
 
-        // Backfill slug on any section that was saved before slugs were added
         const migratedSections = s.map((sec) =>
           sec.slug ? sec : { ...sec, slug: toSlug(sec.name) }
         );
 
-        setTasks(t);
+        setTasks(migratedSections ? t : t);  // always update from Drive (source of truth)
         setSections(migratedSections);
+        writeCache(t, migratedSections);
         setSyncStatus("idle");
 
-        // If we had to backfill slugs, persist the migration immediately
-        if (migratedSections.some((sec, i) => sec.slug !== s[i]?.slug)) {
+        const needsMigration = migratedSections.some((sec, i) => sec.slug !== s[i]?.slug);
+        if (needsMigration) {
           saveToDrive(accessToken, fileId, t, migratedSections)
             .then((id) => { fileIdRef.current = id; })
             .catch(console.error);
@@ -42,6 +77,7 @@ export default function useDriveSync(accessToken, showToast) {
       })
       .catch((err) => {
         if (cancelled) return;
+        loadedRef.current = false;
         console.error("Drive load error:", err);
         setSyncStatus("error");
         showToast?.("Failed to load data from Drive.", "error");
@@ -50,10 +86,14 @@ export default function useDriveSync(accessToken, showToast) {
     return () => { cancelled = true; };
   }, [accessToken]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── Debounced save ────────────────────────────────────────────────────────
+  // ── Debounced save — also updates cache immediately on every mutation ─────
   const scheduleSave = useCallback(
     (latestTasks, latestSections) => {
       if (!accessToken) return;
+
+      // Update cache immediately so next reload is instant
+      writeCache(latestTasks, latestSections);
+
       clearTimeout(saveTimer.current);
       saveTimer.current = setTimeout(async () => {
         setSyncStatus("saving");
@@ -75,5 +115,20 @@ export default function useDriveSync(accessToken, showToast) {
 
   useEffect(() => () => clearTimeout(saveTimer.current), []);
 
-  return { tasks, sections, setTasks, setSections, syncStatus, scheduleSave };
+  // Clear cache on sign-out (accessToken becomes null)
+  useEffect(() => {
+    if (!accessToken) {
+      clearCache();
+      setTasks([]);
+      setSections([]);
+      loadedRef.current = false;
+    }
+  }, [accessToken]);
+
+  return {
+    tasks, sections,
+    setTasks: setTasksAndCache,
+    setSections: setSectionsAndCache,
+    syncStatus, scheduleSave,
+  };
 }
