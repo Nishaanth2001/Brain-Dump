@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Flow</title>
+    <script>
+      // GitHub Pages SPA redirect hack:
+      // Encodes the full path into ?p= and redirects to the base URL.
+      // The main app (RedirectHandler in App.jsx) picks this up on load.
+      var base = "/flow-app";
+      var path = window.location.pathname.slice(base.length) || "/";
+      var search = window.location.search;
+      var hash = window.location.hash;
+      var redirect = base + "/?p=" + encodeURIComponent(path + search + hash);
+      window.location.replace(redirect);
+    </script>
+  </head>
+  <body></body>
+</html>
