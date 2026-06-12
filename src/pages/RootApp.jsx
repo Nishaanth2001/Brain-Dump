@@ -129,7 +129,7 @@ export default function RootApp() {
 
   // ── Shared props bundle passed into route components ──────────────────────
   const sharedProps = {
-    tasks, sections,
+    tasks, sections, user,
     handleCycle, handleDelete, handleSave, handleMoveType,
     handleAddSection, handleDeleteSection,
     showToast,
@@ -179,7 +179,7 @@ export default function RootApp() {
 // Route wrapper components — resolve slug → section, then render screen
 // ─────────────────────────────────────────────────────────────────────────────
 
-function SectionsScreenWrapper({ tasks, sections, handleAddSection, handleDeleteSection }) {
+function SectionsScreenWrapper({ tasks, sections, user, handleAddSection, handleDeleteSection }) {
   const navigate         = useNavigate();
   const [addOpen, setAddOpen] = useState(false);
 
@@ -188,6 +188,7 @@ function SectionsScreenWrapper({ tasks, sections, handleAddSection, handleDelete
       <SectionsScreen
         sections={sections}
         tasks={tasks}
+        user={user}
         onOpen={(s) => navigate(`/${s.slug || toSlug(s.name)}`)}
         onAdd={() => setAddOpen(true)}
         onDelete={handleDeleteSection}
