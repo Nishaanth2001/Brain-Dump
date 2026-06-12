@@ -18,7 +18,7 @@ function RedirectHandler() {
 
 export default function App() {
   return (
-    <BrowserRouter basename="/flow-app/">
+    <BrowserRouter basename="/Brain-Dump/">
       <RedirectHandler />
       <Routes>
         <Route path="/*" element={<RootApp />} />
