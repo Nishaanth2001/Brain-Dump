@@ -5,7 +5,7 @@ import { toSlug } from "../utils/helpers";
 const DEBOUNCE_MS = 1500;
 const CACHE_KEY   = "flow_cache";
 
-const readCache  = () => {
+const readCache = () => {
   try {
     const raw = localStorage.getItem(CACHE_KEY);
     return raw ? JSON.parse(raw) : null;
@@ -23,34 +23,25 @@ const clearCache = () => {
 };
 
 export default function useDriveSync(accessToken, showToast) {
-  // Seed state from cache so the UI is instant on reload
   const cached = readCache();
-  const [tasks,      setTasks]      = useState(cached?.tasks    ?? []);
-  const [sections,   setSections]   = useState(cached?.sections ?? []);
-  const [syncStatus, setSyncStatus] = useState(cached ? "idle" : "loading");
+
+  const [tasks,      setTasks]      = useState(() => cached?.tasks    ?? []);
+  const [sections,   setSections]   = useState(() => cached?.sections ?? []);
+  // If we have cached data, start as idle — user sees content instantly.
+  // If no cache, show loading until Drive responds.
+  const [syncStatus, setSyncStatus] = useState(() => cached ? "idle" : "loading");
 
   const fileIdRef = useRef(null);
   const saveTimer = useRef(null);
   const loadedRef = useRef(false);
 
-  // ── Wrap setters so every mutation also updates the cache ─────────────────
-  const setTasksAndCache = useCallback((t) => {
-    setTasks(t);
-    setSections((s) => { writeCache(t, s); return s; });
-  }, []);
-
-  const setSectionsAndCache = useCallback((s) => {
-    setSections(s);
-    setTasks((t) => { writeCache(t, s); return t; });
-  }, []);
-
-  // ── Load from Drive once — runs in background if cache already populated ──
+  // ── Load from Drive once ──────────────────────────────────────────────────
   useEffect(() => {
     if (!accessToken || loadedRef.current) return;
     loadedRef.current = true;
 
-    // Only show the loading indicator if there's nothing cached yet
-    if (!readCache()) setSyncStatus("loading");
+    // If cache exists, sync quietly in the background without showing spinner
+    if (!cached) setSyncStatus("loading");
 
     let cancelled = false;
 
@@ -63,7 +54,8 @@ export default function useDriveSync(accessToken, showToast) {
           sec.slug ? sec : { ...sec, slug: toSlug(sec.name) }
         );
 
-        setTasks(migratedSections ? t : t);  // always update from Drive (source of truth)
+        // Drive is always the source of truth — update state and cache
+        setTasks(t);
         setSections(migratedSections);
         writeCache(t, migratedSections);
         setSyncStatus("idle");
@@ -86,12 +78,12 @@ export default function useDriveSync(accessToken, showToast) {
     return () => { cancelled = true; };
   }, [accessToken]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── Debounced save — also updates cache immediately on every mutation ─────
+  // ── Debounced save ────────────────────────────────────────────────────────
   const scheduleSave = useCallback(
     (latestTasks, latestSections) => {
       if (!accessToken) return;
 
-      // Update cache immediately so next reload is instant
+      // Write to cache immediately so next reload is instant
       writeCache(latestTasks, latestSections);
 
       clearTimeout(saveTimer.current);
@@ -115,20 +107,16 @@ export default function useDriveSync(accessToken, showToast) {
 
   useEffect(() => () => clearTimeout(saveTimer.current), []);
 
-  // Clear cache on sign-out (accessToken becomes null)
+  // Clear cache and reset on sign-out
   useEffect(() => {
     if (!accessToken) {
       clearCache();
       setTasks([]);
       setSections([]);
       loadedRef.current = false;
+      setSyncStatus("idle");
     }
   }, [accessToken]);
 
-  return {
-    tasks, sections,
-    setTasks: setTasksAndCache,
-    setSections: setSectionsAndCache,
-    syncStatus, scheduleSave,
-  };
+  return { tasks, sections, setTasks, setSections, syncStatus, scheduleSave };
 }
