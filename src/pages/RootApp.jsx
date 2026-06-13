@@ -61,6 +61,40 @@ export default function RootApp() {
     }
   };
 
+  // ── Silent token refresh ─────────────────────────────────────────────────
+  // Called automatically by driveApi whenever a 401 is received.
+  // Uses prompt:"none" so no popup appears — Google issues a new token
+  // silently if the user still has an active Google session.
+  const silentRefresh = useCallback(async () => {
+    try {
+      const silentProvider = new GoogleAuthProvider();
+      silentProvider.addScope("https://www.googleapis.com/auth/drive.appdata");
+      silentProvider.setCustomParameters({ prompt: "none" });
+      const result     = await signInWithPopup(auth, silentProvider);
+      const googleCred = GoogleAuthProvider.credentialFromResult(result);
+      const newToken   = googleCred?.accessToken;
+      if (newToken) {
+        saveToken(newToken);
+        setAccessToken(newToken);
+        return newToken; // driveApi retries with this token
+      }
+    } catch (err) {
+      // Expected when prompt:none can't complete silently (cookie restrictions etc.)
+      // Fall through and return null — driveApi will surface the original error
+      if (err.code !== "auth/cancelled-popup-request" &&
+          err.code !== "auth/popup-closed-by-user" &&
+          err.code !== "auth/popup-blocked") {
+        console.warn("Silent token refresh failed:", err.code || err.message);
+      }
+    }
+    return null;
+  }, []);
+
+  // Register the refresher once on mount so driveApi can call it on 401s
+  useEffect(() => {
+    registerTokenRefresher(silentRefresh);
+  }, [silentRefresh]);
+
   const handleSignOut = async () => {
     clearToken();
     await signOut(auth);
