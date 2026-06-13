@@ -193,7 +193,7 @@ export default function RootApp() {
   }
 
   return (
-    <div style={{ minHeight:"100vh", background:"#080E18", color:"#E2E8F0" }}>
+    <div style={{ minHeight:"100vh", background:theme.bg, color:theme.text, transition:"background 0.3s ease, color 0.3s ease" }}>
       <TopBar user={user} syncStatus={syncStatus} onSignOut={handleSignOut} />
 
       <Routes>
@@ -349,16 +349,18 @@ function TopBar({ user, syncStatus, onSignOut }) {
 }
 
 function Spinner({ label }) {
+  const { theme } = useTheme();
   return (
-    <div style={{ minHeight:"100vh", background:"#080E18", display:"flex", alignItems:"center", justifyContent:"center", flexDirection:"column", gap:12 }}>
-      <div style={{ width:28, height:28, border:"2px solid rgba(232,69,69,0.2)", borderTop:"2px solid #E84545", borderRadius:"50%", animation:"spin 0.8s linear infinite" }} />
+    <div style={{ minHeight:"100vh", background:theme.bg, display:"flex", alignItems:"center", justifyContent:"center", flexDirection:"column", gap:12, transition:"background 0.3s ease" }}>
+      <div style={{ width:28, height:28, border:`2px solid ${theme.redDim}`, borderTop:"2px solid #E84545", borderRadius:"50%", animation:"spin 0.8s linear infinite" }} />
       <style>{`@keyframes spin { to { transform:rotate(360deg) } }`}</style>
-      <div style={{ color:"#2D3748", fontSize:12, fontFamily:"'DM Sans',sans-serif" }}>{label}</div>
+      <div style={{ color:theme.textMuted, fontSize:12, fontFamily:"'DM Sans',sans-serif" }}>{label}</div>
     </div>
   );
 }
 
 function ReconnectScreen({ user, onSignIn }) {
+  const { theme } = useTheme();
   const [btnHover, setBtnHover] = useState(false);
   const [visible,  setVisible]  = useState(false);
 
@@ -374,7 +376,7 @@ function ReconnectScreen({ user, onSignIn }) {
   return (
     <div style={{
       minHeight: "100vh",
-      background: "#080E18",
+      background: theme.bg,
       fontFamily: "'DM Sans', sans-serif",
       display: "flex",
       alignItems: "center",
@@ -401,7 +403,7 @@ function ReconnectScreen({ user, onSignIn }) {
       {/* Card */}
       <div style={{
         position: "relative",
-        background: "linear-gradient(145deg, #0E1826, #0A1220)",
+        background: theme.bgModal,
         border: "1px solid rgba(255,255,255,0.07)",
         borderRadius: 24,
         padding: "48px 40px",
@@ -450,13 +452,13 @@ function ReconnectScreen({ user, onSignIn }) {
         {/* Text */}
         <div style={{
           fontFamily: "'DM Serif Display', serif",
-          fontSize: 26, color: "#E2E8F0",
+          fontSize: 26, color: theme.text,
           marginBottom: 10, letterSpacing: "-0.3px",
         }}>
           Welcome back, {first}
         </div>
         <p style={{
-          color: "#4A5568", fontSize: 13, lineHeight: 1.7,
+          color: theme.textMuted, fontSize: 13, lineHeight: 1.7,
           marginBottom: 32, maxWidth: 280, margin: "0 auto 32px",
         }}>
           Your Drive connection expired. One quick sign-in and you&apos;ll be right back where you left off.
@@ -467,7 +469,7 @@ function ReconnectScreen({ user, onSignIn }) {
           display: "flex", alignItems: "center", gap: 12, marginBottom: 28,
         }}>
           <div style={{ flex: 1, height: 1, background: "rgba(255,255,255,0.05)" }} />
-          <span style={{ color: "#2D3748", fontSize: 11, letterSpacing: "0.06em" }}>YOUR DATA IS SAFE</span>
+          <span style={{ color: theme.textDim, fontSize: 11, letterSpacing: "0.06em" }}>YOUR DATA IS SAFE</span>
           <div style={{ flex: 1, height: 1, background: "rgba(255,255,255,0.05)" }} />
         </div>
 
@@ -478,7 +480,7 @@ function ReconnectScreen({ user, onSignIn }) {
               background: "rgba(255,255,255,0.03)",
               border: "1px solid rgba(255,255,255,0.07)",
               borderRadius: 20, padding: "5px 12px",
-              fontSize: 11, color: "#4A5568",
+              fontSize: 11, color: theme.textMuted,
             }}>{t}</span>
           ))}
         </div>
