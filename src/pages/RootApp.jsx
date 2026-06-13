@@ -20,6 +20,7 @@ import Toast           from "../components/common/Toast";
 
 import { uid, todayStr, toSlug } from "../utils/helpers";
 import { registerTokenRefresher } from "../utils/driveApi";
+import { useTheme } from "../contexts/ThemeContext";
 
 const TOKEN_KEY  = "flow_drive_token";
 const saveToken  = (t) => sessionStorage.setItem(TOKEN_KEY, t);
