@@ -258,28 +258,54 @@ function CompletedScreenWrapper({ tasks, sections, handleDelete }) {
 
 function TopBar({ user, syncStatus, onSignOut }) {
   const navigate = useNavigate();
+  const { theme, toggle } = useTheme();
+  const isDark = theme.mode === "dark";
+
   return (
     <div style={{
-      borderBottom:"1px solid rgba(255,255,255,0.05)",
+      borderBottom:`1px solid ${theme.border}`,
       padding:"12px 24px",
       display:"flex", alignItems:"center", justifyContent:"space-between",
       position:"sticky", top:0, zIndex:50,
-      background:"rgba(8,14,24,0.9)", backdropFilter:"blur(12px)",
+      background:theme.bgTopBar, backdropFilter:"blur(12px)",
+      transition:"background 0.3s ease, border-color 0.3s ease",
     }}>
       <div
         onClick={() => navigate("/")}
-        style={{ fontFamily:"'DM Serif Display',serif", fontSize:18, color:"#E2E8F0", cursor:"pointer" }}
+        style={{ fontFamily:"'DM Serif Display',serif", fontSize:18, color:theme.text, cursor:"pointer" }}
       >Flow</div>
-      <div style={{ display:"flex", alignItems:"center", gap:16 }}>
-        {syncStatus === "saving"  && <span style={{ color:"#F5A623", fontSize:11 }}>↑ Saving…</span>}
-        {syncStatus === "loading" && <span style={{ color:"#4A9EE8", fontSize:11 }}>↓ Loading…</span>}
-        {syncStatus === "error"   && <span style={{ color:"#E84545", fontSize:11 }}>⚠ Sync error</span>}
-        <span style={{ color:"#2D3748", fontSize:12 }}>{user.displayName || user.email}</span>
+      <div style={{ display:"flex", alignItems:"center", gap:12 }}>
+        {syncStatus === "saving"  && <span style={{ color:theme.orange, fontSize:11 }}>↑ Saving…</span>}
+        {syncStatus === "loading" && <span style={{ color:theme.blue,   fontSize:11 }}>↓ Loading…</span>}
+        {syncStatus === "error"   && <span style={{ color:theme.red,    fontSize:11 }}>⚠ Sync error</span>}
+        <span style={{ color:theme.textMuted, fontSize:12 }}>{user.displayName || user.email}</span>
+
+        {/* Theme toggle */}
+        <button
+          onClick={toggle}
+          title={isDark ? "Switch to light mode" : "Switch to dark mode"}
+          style={{
+            background: theme.bgInput,
+            border: `1px solid ${theme.border}`,
+            borderRadius: 8,
+            padding: "5px 10px",
+            cursor: "pointer",
+            fontSize: 15,
+            lineHeight: 1,
+            transition: "all 0.2s ease",
+            display: "flex", alignItems: "center", justifyContent: "center",
+          }}
+          onMouseEnter={(e) => { e.currentTarget.style.borderColor = theme.red; e.currentTarget.style.background = theme.redDim; }}
+          onMouseLeave={(e) => { e.currentTarget.style.borderColor = theme.border; e.currentTarget.style.background = theme.bgInput; }}
+        >
+          {isDark ? "☀️" : "🌙"}
+        </button>
+
         <button
           onClick={onSignOut}
-          style={{ background:"none", border:"1px solid rgba(255,255,255,0.08)", borderRadius:8, padding:"5px 12px", color:"#4A5568", fontSize:12, cursor:"pointer", fontFamily:"'DM Sans',sans-serif", transition:"all 0.15s" }}
-          onMouseEnter={(e) => { e.currentTarget.style.color="#E84545"; e.currentTarget.style.borderColor="#E84545"; }}
-          onMouseLeave={(e) => { e.currentTarget.style.color="#4A5568"; e.currentTarget.style.borderColor="rgba(255,255,255,0.08)"; }}
+          style={{ background:"none", border:`1px solid ${theme.border}`, borderRadius:8, padding:"5px 12px", color:theme.textMuted, fontSize:12, cursor:"pointer", fontFamily:"'DM Sans',sans-serif", transition:"all 0.15s" }}
+          onMouseEnter={(e) => { e.currentTarget.style.color=theme.red; e.currentTarget.style.borderColor=theme.red; }}
+          onMouseLeave={(e) => { e.currentTarget.style.color=theme.textMuted; e.currentTarget.style.borderColor=theme.border; }}
         >Sign out</button>
       </div>
     </div>
