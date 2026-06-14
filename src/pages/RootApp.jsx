@@ -32,6 +32,7 @@ const clearToken = ()  => sessionStorage.removeItem(TOKEN_KEY);
 // Auth + data lives here; routing is delegated to child route components
 // ─────────────────────────────────────────────────────────────────────────────
 export default function RootApp() {
+  const { theme } = useTheme();
   const [user,        setUser]        = useState(null);
   const [accessToken, setAccessToken] = useState(loadToken);
   const [authLoading, setAuthLoading] = useState(true);
