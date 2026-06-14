@@ -195,11 +195,22 @@ export default function RootApp() {
     navigate("/");
   }, [sections, tasks, persistSections, persistTasks, navigate]);
 
+  const handleRenameSection = useCallback((sectionId, newName) => {
+    const newSlug = toSlug(newName);
+    persistSections(sections.map((s) =>
+      s.id === sectionId ? { ...s, name: newName, slug: newSlug } : s
+    ));
+  }, [sections, persistSections]);
+
+  const handleReorderSections = useCallback((reordered) => {
+    persistSections(reordered);
+  }, [persistSections]);
+
   // ── Shared props bundle passed into route components ──────────────────────
   const sharedProps = {
     tasks, sections, user,
     handleCycle, handleDelete, handleSave, handleMoveType,
-    handleAddSection, handleDeleteSection,
+    handleAddSection, handleDeleteSection, handleRenameSection, handleReorderSections,
     showToast,
   };
 
@@ -247,7 +258,7 @@ export default function RootApp() {
 // Route wrapper components — resolve slug → section, then render screen
 // ─────────────────────────────────────────────────────────────────────────────
 
-function SectionsScreenWrapper({ tasks, sections, user, handleAddSection, handleDeleteSection }) {
+function SectionsScreenWrapper({ tasks, sections, user, handleAddSection, handleDeleteSection, handleRenameSection, handleReorderSections }) {
   const navigate         = useNavigate();
   const [addOpen, setAddOpen] = useState(false);
 
@@ -260,6 +271,8 @@ function SectionsScreenWrapper({ tasks, sections, user, handleAddSection, handle
         onOpen={(s) => navigate(`/${s.slug || toSlug(s.name)}`)}
         onAdd={() => setAddOpen(true)}
         onDelete={handleDeleteSection}
+        onRename={handleRenameSection}
+        onReorder={handleReorderSections}
         onViewCompleted={() => navigate("/completed")}
       />
       <AddSectionModal
