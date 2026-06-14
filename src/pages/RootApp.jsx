@@ -98,6 +98,37 @@ export default function RootApp() {
     registerTokenRefresher(silentRefresh);
   }, [silentRefresh]);
 
+  // Proactively refresh the token every 55 minutes (tokens expire at 60 min).
+  // This runs silently in the background — no popup, no interruption.
+  // We do it proactively so the token is always fresh before Drive calls need it.
+  useEffect(() => {
+    if (!user || !accessToken) return;
+
+    const REFRESH_INTERVAL = 55 * 60 * 1000; // 55 minutes in ms
+
+    const doRefresh = async () => {
+      try {
+        const googleProvider = new GoogleAuthProvider();
+        googleProvider.addScope("https://www.googleapis.com/auth/drive.appdata");
+        googleProvider.setCustomParameters({ prompt: "none" });
+        const result     = await signInWithPopup(auth, googleProvider);
+        const googleCred = GoogleAuthProvider.credentialFromResult(result);
+        const newToken   = googleCred?.accessToken;
+        if (newToken) {
+          saveToken(newToken);
+          setAccessToken(newToken);
+        }
+      } catch (err) {
+        // Silent refresh failed — token will expire but driveApi 401 handler
+        // will attempt recovery on the next Drive call.
+        console.warn("Proactive token refresh failed:", err.code || err.message);
+      }
+    };
+
+    const timer = setInterval(doRefresh, REFRESH_INTERVAL);
+    return () => clearInterval(timer);
+  }, [user, accessToken]);
+
   const handleSignOut = async () => {
     clearToken();
     await signOut(auth);

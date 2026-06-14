@@ -19,6 +19,8 @@ async function driveReq(url, method = "GET", body = null, token, retry = true) {
   if (res.status === 401 && retry && _refreshToken) {
     const newToken = await _refreshToken();
     if (newToken) return driveReq(url, method, body, newToken, false);
+    // Refresh failed — throw so the UI shows sync error instead of hanging
+    throw new Error("Drive request failed: 401 (token refresh failed)");
   }
 
   if (!res.ok) throw new Error(`Drive request failed: ${res.status} ${res.statusText}`);
