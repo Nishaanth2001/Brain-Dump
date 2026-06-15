@@ -25,7 +25,13 @@ const SECTION_ACCENTS = [
   { color:"#A78BFA", dim:"rgba(167,139,250,0.08)", glow:"rgba(167,139,250,0.15)" },
   { color:"#F472B6", dim:"rgba(244,114,182,0.08)", glow:"rgba(244,114,182,0.15)" },
 ];
-const accent = (i) => SECTION_ACCENTS[i % SECTION_ACCENTS.length];
+
+// Stable colour derived from section ID so reordering never changes the colour
+const accentForId = (id) => {
+  let hash = 0;
+  for (let i = 0; i < id.length; i++) hash = (hash * 31 + id.charCodeAt(i)) >>> 0;
+  return SECTION_ACCENTS[hash % SECTION_ACCENTS.length];
+};
 
 function greeting() {
   const h = new Date().getHours();
@@ -146,7 +152,7 @@ function SectionCard({ section, index, tasks, onOpen, onDelete, onRename, isDrag
   } = useSortable({ id: section.id });
 
   const today  = new Date().toISOString().split("T")[0];
-  const ac     = accent(index);
+  const ac     = accentForId(section.id);
   const active = tasks.filter((t) => t.sectionId===section.id && !isDone(t)).length;
   const done   = tasks.filter((t) => t.sectionId===section.id &&  isDone(t)).length;
   const ov     = tasks.filter((t) => t.sectionId===section.id && !isDone(t) && t.deadlineDate && t.deadlineDate < today).length;
@@ -182,7 +188,9 @@ function SectionCard({ section, index, tasks, onOpen, onDelete, onRename, isDrag
       }}
     >
       {/* Accent bar */}
-      <div style={{ position:"absolute", top:0, left:0, right:0, height:3, background:`linear-gradient(90deg,${ac.color},transparent)`, borderRadius:"18px 18px 0 0" }} />
+      <div style={{ position:"absolute", top:0, left:0, right:0, height:18, pointerEvents:"none", borderRadius:"18px 18px 0 0", overflow:"hidden" }}>
+        <div style={{ height:3, background:`linear-gradient(90deg,${ac.color},transparent)` }} />
+      </div>
 
       {/* Drag handle — separate from click area */}
       <div
@@ -245,7 +253,7 @@ function SectionCard({ section, index, tasks, onOpen, onDelete, onRename, isDrag
 // Overlay card shown while dragging (ghost)
 function DragGhostCard({ section, index }) {
   const { theme } = useTheme();
-  const ac = accent(index);
+  const ac = accentForId(section.id);
   return (
     <div style={{
       background:theme.bgCard, border:`2px solid ${ac.color}`,
@@ -254,7 +262,9 @@ function DragGhostCard({ section, index }) {
       transform:"rotate(2deg) scale(1.03)",
       position:"relative", overflow:"hidden",
     }}>
-      <div style={{ position:"absolute", top:0, left:0, right:0, height:3, background:`linear-gradient(90deg,${ac.color},transparent)`, borderRadius:"18px 18px 0 0" }} />
+      <div style={{ position:"absolute", top:0, left:0, right:0, height:18, pointerEvents:"none", borderRadius:"18px 18px 0 0", overflow:"hidden" }}>
+        <div style={{ height:3, background:`linear-gradient(90deg,${ac.color},transparent)` }} />
+      </div>
       <div style={{ width:36, height:36, borderRadius:10, background:ac.dim, display:"flex", alignItems:"center", justifyContent:"center", marginTop:12, marginBottom:12, fontSize:16, color:ac.color, fontWeight:700 }}>
         {section.name.charAt(0).toUpperCase()}
       </div>
