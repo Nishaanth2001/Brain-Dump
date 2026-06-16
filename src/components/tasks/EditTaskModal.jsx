@@ -2,7 +2,6 @@ import { useState, useEffect } from "react";
 import Modal from "../common/Modal";
 import Field from "../common/Field";
 import { makeFieldStyle } from "../common/styles";
-import { isDone } from "../../utils/helpers";
 import { useTheme } from "../../contexts/ThemeContext";
 
 function EditTaskModal({ open, task, onClose, onSave, onMoveType }) {
@@ -18,7 +17,9 @@ function EditTaskModal({ open, task, onClose, onSave, onMoveType }) {
         title:        task.title        || "",
         startDate:    task.startDate    || "",
         deadlineDate: task.deadlineDate || "",
-        status:       isDone(task) ? "Not Started" : task.status || "Not Started",
+        // Preserve the real status (including Done/Done Late) so saving
+        // an already-completed task does not silently reset it to Not Started.
+        status:       task.status || "Not Started",
         priority:     task.priority     || "HH",
         notes:        task.notes        || "",
       });

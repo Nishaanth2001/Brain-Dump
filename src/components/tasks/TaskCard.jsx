@@ -1,15 +1,18 @@
 import { P, getDisplayStatus, getStatusBadge, todayStr } from "../../utils/helpers";
 import { useTheme } from "../../contexts/ThemeContext";
 
-function TaskCard({ task, onCycle, onDelete, onEdit }) {
+function TaskCard({ task, onCycle, onDelete, onEdit, onProgress }) {
   const { theme } = useTheme();
-  const pr    = P(task.priority);
-  const ds    = getDisplayStatus(task);
-  const sb    = getStatusBadge(task);
-  const today = todayStr();
+  const pr      = P(task.priority);
+  const ds      = getDisplayStatus(task);
+  const sb      = getStatusBadge(task);
+  const today   = todayStr();
+  const isIP    = task.status === "In Progress";
+  const pct     = task.progress ?? 0;
+  const trackBg = theme.mode === "dark" ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.10)";
 
   const borderColor =
-    task.status === "In Progress" && task.deadlineDate && task.deadlineDate < today
+    isIP && task.deadlineDate && task.deadlineDate < today
       ? "rgba(232,69,69,0.25)"
       : task.status === "Not Started" && task.startDate && task.startDate < today
       ? "rgba(245,166,35,0.25)"
@@ -28,6 +31,16 @@ function TaskCard({ task, onCycle, onDelete, onEdit }) {
       onMouseEnter={(e) => { e.currentTarget.style.transform="translateY(-1px)"; e.currentTarget.style.boxShadow=theme.shadowCard; }}
       onMouseLeave={(e) => { e.currentTarget.style.transform="translateY(0)"; e.currentTarget.style.boxShadow="none"; }}
     >
+      {/* Slider thumb CSS — uses CSS custom props set inline so each card picks its own priority colour */}
+      <style>{`
+        .prog-slider { -webkit-appearance:none; appearance:none; height:4px; border-radius:4px; outline:none; cursor:pointer; border:none; display:block; }
+        .prog-slider::-webkit-slider-thumb { -webkit-appearance:none; width:14px; height:14px; border-radius:50%; background:var(--prog-color); border:2px solid var(--prog-border); cursor:pointer; transition:transform 0.15s; }
+        .prog-slider::-webkit-slider-thumb:hover { transform:scale(1.25); }
+        .prog-slider::-moz-range-thumb { width:14px; height:14px; border-radius:50%; background:var(--prog-color); border:2px solid var(--prog-border); cursor:pointer; }
+        .prog-slider:focus { outline:none; }
+        .prog-slider:focus-visible::-webkit-slider-thumb { box-shadow:0 0 0 3px var(--prog-glow); }
+      `}</style>
+
       <div style={{ display:"flex", gap:12, alignItems:"flex-start" }}>
         <div style={{ flex:1, minWidth:0 }}>
           <div style={{ color:theme.text, fontWeight:600, fontSize:14, marginBottom:6 }}>{task.title}</div>
@@ -40,6 +53,34 @@ function TaskCard({ task, onCycle, onDelete, onEdit }) {
               <span key={g} style={{ background:theme.blueDim, color:theme.blue, fontSize:10, padding:"2px 7px", borderRadius:4 }}>{g}</span>
             ))}
           </div>
+
+          {/* ── Progress slider — only shown while In Progress ── */}
+          {isIP && (
+            <div
+              onClick={(e) => e.stopPropagation()}
+              style={{ marginTop:10, paddingTop:10, borderTop:`1px solid ${theme.border}` }}
+            >
+              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:6 }}>
+                <span style={{ color:theme.textDim, fontSize:10, fontWeight:700, letterSpacing:"0.05em", fontFamily:"'DM Sans',sans-serif" }}>PROGRESS</span>
+                <span style={{ color:pr.color, fontSize:11, fontWeight:700, fontFamily:"'DM Sans',sans-serif", minWidth:32, textAlign:"right" }}>{pct}%</span>
+              </div>
+              <input
+                type="range"
+                className="prog-slider"
+                min={0} max={100} step={5}
+                value={pct}
+                onChange={(e) => onProgress(task.id, Number(e.target.value))}
+                style={{
+                  width: "100%",
+                  background: `linear-gradient(to right, ${pr.color} ${pct}%, ${trackBg} ${pct}%)`,
+                  "--prog-color":  pr.color,
+                  "--prog-border": theme.bgCardSolid,
+                  "--prog-glow":   pr.color + "55",
+                }}
+              />
+            </div>
+          )}
+
           {task.notes && (
             <div style={{ marginTop:8, color:theme.textDim, fontSize:11, borderTop:`1px solid ${theme.border}`, paddingTop:8 }}>
               {task.notes.length>120 ? task.notes.slice(0,120)+"…" : task.notes}

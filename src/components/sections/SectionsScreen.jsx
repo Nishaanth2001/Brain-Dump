@@ -146,10 +146,16 @@ function SectionMenu({ sectionId, sectionName, onDelete, onRename, onOpen }) {
 // ── Sortable section card ─────────────────────────────────────────────────────
 function SectionCard({ section, index, tasks, onOpen, onDelete, onRename, isDragging }) {
   const { theme } = useTheme();
+  const [isHovered, setIsHovered] = useState(false);
   const {
     attributes, listeners, setNodeRef,
     transform, transition, isDragging: isSelfDragging,
   } = useSortable({ id: section.id });
+
+  // Clear hover highlight whenever any drag starts so styles never get stuck
+  useEffect(() => {
+    if (isDragging) setIsHovered(false);
+  }, [isDragging]);
 
   const today  = new Date().toISOString().split("T")[0];
   const ac     = accentForId(section.id);
@@ -158,12 +164,18 @@ function SectionCard({ section, index, tasks, onOpen, onDelete, onRename, isDrag
   const ov     = tasks.filter((t) => t.sectionId===section.id && !isDone(t) && t.deadlineDate && t.deadlineDate < today).length;
   const pct    = active+done > 0 ? Math.round((done/(active+done))*100) : 0;
 
+  // hovered is only true when the mouse is physically over the card and no drag is active
+  const hovered = isHovered && !isDragging;
+
   const style = {
-    transform: CSS.Transform.toString(transform),
+    transform: hovered
+      ? (CSS.Transform.toString(transform) || "translateY(-4px)")
+      : CSS.Transform.toString(transform),
     transition: isSelfDragging ? "none" : transition,
     opacity: isSelfDragging ? 0 : 1,
     background: theme.bgCard,
-    border: `1px solid ${theme.border}`,
+    border: `1px solid ${hovered ? ac.color : theme.border}`,
+    boxShadow: hovered ? `0 16px 48px ${ac.glow}` : "none",
     borderRadius:18, padding:"24px 22px", cursor:"grab",
     position:"relative", display:"flex", flexDirection:"column", gap:14,
     minHeight:160, overflow:"visible",
@@ -175,17 +187,8 @@ function SectionCard({ section, index, tasks, onOpen, onDelete, onRename, isDrag
       ref={setNodeRef}
       style={style}
       className="section-card"
-      onMouseEnter={(e) => {
-        if (isDragging) return;
-        e.currentTarget.style.borderColor = ac.color;
-        e.currentTarget.style.transform   = CSS.Transform.toString(transform) || "translateY(-4px)";
-        e.currentTarget.style.boxShadow   = `0 16px 48px ${ac.glow}`;
-      }}
-      onMouseLeave={(e) => {
-        if (isDragging) return;
-        e.currentTarget.style.borderColor = theme.border;
-        e.currentTarget.style.boxShadow   = "none";
-      }}
+      onMouseEnter={() => { if (!isDragging) setIsHovered(true); }}
+      onMouseLeave={() => setIsHovered(false)}
     >
       {/* Accent bar */}
       <div style={{ position:"absolute", top:0, left:0, right:0, height:18, pointerEvents:"none", borderRadius:"18px 18px 0 0", overflow:"hidden" }}>

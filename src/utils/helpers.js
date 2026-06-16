@@ -1,6 +1,6 @@
 import { PRIORITIES } from "../constants/appConstants";
 
-export const uid      = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+export const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 10);
 export const todayStr = () => new Date().toISOString().split("T")[0];
 export const P        = (key) => PRIORITIES.find((p) => p.key === key) || PRIORITIES[0];
 export const isDone   = (t) => t.status === "Done" || t.status === "Done Late";
@@ -37,6 +37,10 @@ export function getStatusBadge(t) {
   return { text: t.status, color: "#3DD68C", bg: "rgba(61,214,140,0.1)" };
 }
 
-export const toSlug = (name) =>
-  name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+export const toSlug = (name) => {
+  const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+  // Guard against names made entirely of special characters (e.g. "!!!"),
+  // which would produce an empty string and create an unreachable/duplicate route.
+  return slug || "section";
+};
 

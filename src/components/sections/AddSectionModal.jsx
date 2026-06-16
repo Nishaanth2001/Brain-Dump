@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Modal from "../common/Modal";
 import Field from "../common/Field";
 import { makeFieldStyle } from "../common/styles";
@@ -8,6 +8,11 @@ function AddSectionModal({ open, onClose, onAdd }) {
   const { theme } = useTheme();
   const fs = makeFieldStyle(theme);
   const [name, setName] = useState("");
+
+  // Clear stale input whenever the modal is opened or closed
+  useEffect(() => {
+    if (!open) setName("");
+  }, [open]);
 
   const submit = () => {
     if (name.trim()) { onAdd(name.trim()); setName(""); onClose(); }

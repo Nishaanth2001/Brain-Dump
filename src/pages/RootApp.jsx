@@ -158,10 +158,10 @@ export default function RootApp() {
     const today = todayStr();
     persistTasks(tasks.map((t) => {
       if (t.id !== taskId) return t;
-      if (t.status === "Not Started") return { ...t, status: "In Progress" };
+      if (t.status === "Not Started") return { ...t, status: "In Progress", progress: t.progress ?? 0 };
       if (t.status === "In Progress") {
         const late = t.deadlineDate && t.deadlineDate < today;
-        return { ...t, status: late ? "Done Late" : "Done", completedAt: today };
+        return { ...t, status: late ? "Done Late" : "Done", completedAt: today, progress: 100 };
       }
       return t;
     }));
@@ -182,6 +182,19 @@ export default function RootApp() {
     ));
   }, [tasks, persistTasks]);
 
+  // When the user drags the slider to 100 the task auto-completes.
+  const handleProgress = useCallback((taskId, pct) => {
+    const today = todayStr();
+    persistTasks(tasks.map((t) => {
+      if (t.id !== taskId) return t;
+      if (pct === 100) {
+        const late = t.deadlineDate && t.deadlineDate < today;
+        return { ...t, progress: 100, status: late ? "Done Late" : "Done", completedAt: today };
+      }
+      return { ...t, progress: pct };
+    }));
+  }, [tasks, persistTasks]);
+
   // ── Section handlers ──────────────────────────────────────────────────────
   const handleAddSection = useCallback((name) => {
     const newSection = { id: uid(), name, slug: toSlug(name), createdAt: Date.now() };
@@ -190,10 +203,17 @@ export default function RootApp() {
   }, [sections, persistSections, navigate]);
 
   const handleDeleteSection = useCallback((sectionId) => {
-    persistSections(sections.filter((s) => s.id !== sectionId));
-    persistTasks(tasks.filter((t) => t.sectionId !== sectionId));
+    const newSections = sections.filter((s) => s.id !== sectionId);
+    const newTasks    = tasks.filter((t) => t.sectionId !== sectionId);
+    // Set both states and call scheduleSave once with the correct pair.
+    // Calling persistSections then persistTasks separately would cause the
+    // debounce to keep only the second scheduleSave call, which still holds
+    // the old sections in its closure — leaving the deleted section in Drive.
+    setSections(newSections);
+    setTasks(newTasks);
+    scheduleSave(newTasks, newSections);
     navigate("/");
-  }, [sections, tasks, persistSections, persistTasks, navigate]);
+  }, [sections, tasks, setSections, setTasks, scheduleSave, navigate]);
 
   const handleRenameSection = useCallback((sectionId, newName) => {
     const newSlug = toSlug(newName);
@@ -208,8 +228,8 @@ export default function RootApp() {
 
   // ── Shared props bundle passed into route components ──────────────────────
   const sharedProps = {
-    tasks, sections, user,
-    handleCycle, handleDelete, handleSave, handleMoveType,
+    tasks, sections, user, syncStatus,
+    handleCycle, handleDelete, handleSave, handleMoveType, handleProgress,
     handleAddSection, handleDeleteSection, handleRenameSection, handleReorderSections,
     showToast,
   };
@@ -284,7 +304,7 @@ function SectionsScreenWrapper({ tasks, sections, user, handleAddSection, handle
   );
 }
 
-function AppScreenWrapper({ tasks, sections, handleCycle, handleDelete, handleSave, handleMoveType }) {
+function AppScreenWrapper({ tasks, sections, syncStatus, handleCycle, handleDelete, handleSave, handleMoveType, handleProgress }) {
   const { sectionSlug } = useParams();
   const navigate        = useNavigate();
 
@@ -294,7 +314,7 @@ function AppScreenWrapper({ tasks, sections, handleCycle, handleDelete, handleSa
   );
 
   // Sections haven't loaded from Drive yet — show spinner
-  if (sections.length === 0) return <Spinner label="Loading…" />;
+  if (sections.length === 0 && syncStatus === "loading") return <Spinner label="Loading…" />;
   // Slug doesn't match any section — redirect home
   if (!section) return <Navigate to="/" replace />;
 
@@ -307,12 +327,13 @@ function AppScreenWrapper({ tasks, sections, handleCycle, handleDelete, handleSa
       onDelete={handleDelete}
       onSave={handleSave}
       onMoveType={handleMoveType}
+      onProgress={handleProgress}
       onViewCompleted={() => navigate(`/${sectionSlug}/completed`)}
     />
   );
 }
 
-function CompletedScreenWrapper({ tasks, sections, handleDelete }) {
+function CompletedScreenWrapper({ tasks, sections, syncStatus, handleDelete }) {
   const { sectionSlug } = useParams();
   const navigate        = useNavigate();
 
@@ -320,7 +341,7 @@ function CompletedScreenWrapper({ tasks, sections, handleDelete }) {
     ? sections.find((s) => (s.slug || toSlug(s.name)) === sectionSlug)
     : null;
 
-  if (sections.length === 0) return <Spinner label="Loading…" />;
+  if (sections.length === 0 && syncStatus === "loading") return <Spinner label="Loading…" />;
 
   return (
     <CompletedScreen
