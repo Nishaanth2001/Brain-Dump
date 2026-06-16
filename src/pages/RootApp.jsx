@@ -23,9 +23,9 @@ import { registerTokenRefresher } from "../utils/driveApi";
 import { useTheme } from "../contexts/ThemeContext";
 
 const TOKEN_KEY  = "flow_drive_token";
-const saveToken  = (t) => sessionStorage.setItem(TOKEN_KEY, t);
-const loadToken  = ()  => sessionStorage.getItem(TOKEN_KEY) || null;
-const clearToken = ()  => sessionStorage.removeItem(TOKEN_KEY);
+const saveToken  = (t) => localStorage.setItem(TOKEN_KEY, t);
+const loadToken  = ()  => localStorage.getItem(TOKEN_KEY) || null;
+const clearToken = ()  => localStorage.removeItem(TOKEN_KEY);
 
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -42,9 +42,35 @@ export default function RootApp() {
 
   // ── Auth ──────────────────────────────────────────────────────────────────
   useEffect(() => {
-    const unsub = onAuthStateChanged(auth, (firebaseUser) => {
-      setUser(firebaseUser ?? null);
-      if (!firebaseUser) clearToken();
+    const unsub = onAuthStateChanged(auth, async (firebaseUser) => {
+      if (!firebaseUser) {
+        clearToken();
+        setUser(null);
+        setAuthLoading(false);
+        return;
+      }
+      setUser(firebaseUser);
+      // Drive token already in session — go straight in, no prompt needed.
+      if (loadToken()) {
+        setAuthLoading(false);
+        return;
+      }
+      // Token is gone (new tab / browser restarted / session expired).
+      // Attempt a silent Google re-auth BEFORE showing anything, so the
+      // user is never interrupted unnecessarily. We keep authLoading=true
+      // for the duration so only the spinner is shown, not a login screen.
+      try {
+        const sp = new GoogleAuthProvider();
+        sp.addScope("https://www.googleapis.com/auth/drive.appdata");
+        sp.setCustomParameters({ prompt: "none", access_type: "offline" });
+        const result = await signInWithPopup(auth, sp);
+        const cred   = GoogleAuthProvider.credentialFromResult(result);
+        const token  = cred?.accessToken;
+        if (token) { saveToken(token); setAccessToken(token); }
+      } catch {
+        // Silent re-auth failed (e.g. Google session expired, popup blocked).
+        // accessToken stays null → ReconnectScreen will be shown.
+      }
       setAuthLoading(false);
     });
     return unsub;
@@ -136,6 +162,21 @@ export default function RootApp() {
     setAccessToken(null);
     navigate("/");
     showToast("Signed out.");
+  };
+
+  // Called from the sync-error banner — attempts a full re-auth + token fetch
+  const handleReconnect = async () => {
+    try {
+      const result = await signInWithPopup(auth, provider);
+      const cred   = GoogleAuthProvider.credentialFromResult(result);
+      const token  = cred?.accessToken;
+      if (token) { saveToken(token); setAccessToken(token); }
+      setUser(result.user);
+      showToast("Reconnected successfully!", "success");
+    } catch (err) {
+      console.error("Reconnect error:", err);
+      showToast("Reconnect failed. Please try again.", "error");
+    }
   };
 
   // ── Drive sync ────────────────────────────────────────────────────────────
@@ -257,7 +298,7 @@ export default function RootApp() {
 
   return (
     <div style={{ minHeight:"100vh", background:theme.bg, color:theme.text, transition:"background 0.3s ease, color 0.3s ease" }}>
-      <TopBar user={user} syncStatus={syncStatus} onSignOut={handleSignOut} />
+      <TopBar user={user} syncStatus={syncStatus} onSignOut={handleSignOut} onReconnect={handleReconnect} />
 
       <Routes>
         <Route index element={<SectionsScreenWrapper {...sharedProps} />} />
@@ -358,59 +399,89 @@ function CompletedScreenWrapper({ tasks, sections, syncStatus, handleDelete }) {
 // Shared UI pieces
 // ─────────────────────────────────────────────────────────────────────────────
 
-function TopBar({ user, syncStatus, onSignOut }) {
+function TopBar({ user, syncStatus, onSignOut, onReconnect }) {
   const navigate = useNavigate();
   const { theme, toggle } = useTheme();
   const isDark = theme.mode === "dark";
 
   return (
-    <div style={{
-      borderBottom:`1px solid ${theme.border}`,
-      padding:"12px 24px",
-      display:"flex", alignItems:"center", justifyContent:"space-between",
-      position:"sticky", top:0, zIndex:50,
-      background:theme.bgTopBar, backdropFilter:"blur(12px)",
-      transition:"background 0.3s ease, border-color 0.3s ease",
-    }}>
-      <div
-        onClick={() => navigate("/")}
-        style={{ fontFamily:"'DM Serif Display',serif", fontSize:18, color:theme.text, cursor:"pointer" }}
-      >Flow</div>
-      <div style={{ display:"flex", alignItems:"center", gap:12 }}>
-        {syncStatus === "saving"  && <span style={{ color:theme.orange, fontSize:11 }}>↑ Saving…</span>}
-        {syncStatus === "loading" && <span style={{ color:theme.blue,   fontSize:11 }}>↓ Loading…</span>}
-        {syncStatus === "error"   && <span style={{ color:theme.red,    fontSize:11 }}>⚠ Sync error</span>}
-        <span style={{ color:theme.textMuted, fontSize:12 }}>{user.displayName || user.email}</span>
+    <>
+      <div style={{
+        borderBottom:`1px solid ${theme.border}`,
+        padding:"12px 24px",
+        display:"flex", alignItems:"center", justifyContent:"space-between",
+        position:"sticky", top:0, zIndex:50,
+        background:theme.bgTopBar, backdropFilter:"blur(12px)",
+        transition:"background 0.3s ease, border-color 0.3s ease",
+      }}>
+        <div
+          onClick={() => navigate("/")}
+          style={{ fontFamily:"'DM Serif Display',serif", fontSize:18, color:theme.text, cursor:"pointer" }}
+        >Flow</div>
+        <div style={{ display:"flex", alignItems:"center", gap:12 }}>
+          {syncStatus === "saving"  && <span style={{ color:theme.orange, fontSize:11 }}>↑ Saving…</span>}
+          {syncStatus === "loading" && <span style={{ color:theme.blue,   fontSize:11 }}>↓ Loading…</span>}
+          <span style={{ color:theme.textMuted, fontSize:12 }}>{user.displayName || user.email}</span>
 
-        {/* Theme toggle */}
-        <button
-          onClick={toggle}
-          title={isDark ? "Switch to light mode" : "Switch to dark mode"}
-          style={{
-            background: theme.bgInput,
-            border: `1px solid ${theme.border}`,
-            borderRadius: 8,
-            padding: "5px 10px",
-            cursor: "pointer",
-            fontSize: 15,
-            lineHeight: 1,
-            transition: "all 0.2s ease",
-            display: "flex", alignItems: "center", justifyContent: "center",
-          }}
-          onMouseEnter={(e) => { e.currentTarget.style.borderColor = theme.red; e.currentTarget.style.background = theme.redDim; }}
-          onMouseLeave={(e) => { e.currentTarget.style.borderColor = theme.border; e.currentTarget.style.background = theme.bgInput; }}
-        >
-          {isDark ? "☀️" : "🌙"}
-        </button>
+          {/* Theme toggle */}
+          <button
+            onClick={toggle}
+            title={isDark ? "Switch to light mode" : "Switch to dark mode"}
+            style={{
+              background: theme.bgInput,
+              border: `1px solid ${theme.border}`,
+              borderRadius: 8,
+              padding: "5px 10px",
+              cursor: "pointer",
+              fontSize: 15,
+              lineHeight: 1,
+              transition: "all 0.2s ease",
+              display: "flex", alignItems: "center", justifyContent: "center",
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.borderColor = theme.red; e.currentTarget.style.background = theme.redDim; }}
+            onMouseLeave={(e) => { e.currentTarget.style.borderColor = theme.border; e.currentTarget.style.background = theme.bgInput; }}
+          >
+            {isDark ? "☀️" : "🌙"}
+          </button>
 
-        <button
-          onClick={onSignOut}
-          style={{ background:"none", border:`1px solid ${theme.border}`, borderRadius:8, padding:"5px 12px", color:theme.textMuted, fontSize:12, cursor:"pointer", fontFamily:"'DM Sans',sans-serif", transition:"all 0.15s" }}
-          onMouseEnter={(e) => { e.currentTarget.style.color=theme.red; e.currentTarget.style.borderColor=theme.red; }}
-          onMouseLeave={(e) => { e.currentTarget.style.color=theme.textMuted; e.currentTarget.style.borderColor=theme.border; }}
-        >Sign out</button>
+          <button
+            onClick={onSignOut}
+            style={{ background:"none", border:`1px solid ${theme.border}`, borderRadius:8, padding:"5px 12px", color:theme.textMuted, fontSize:12, cursor:"pointer", fontFamily:"'DM Sans',sans-serif", transition:"all 0.15s" }}
+            onMouseEnter={(e) => { e.currentTarget.style.color=theme.red; e.currentTarget.style.borderColor=theme.red; }}
+            onMouseLeave={(e) => { e.currentTarget.style.color=theme.textMuted; e.currentTarget.style.borderColor=theme.border; }}
+          >Sign out</button>
+        </div>
       </div>
-    </div>
+
+      {/* Sync-error banner — shown below the TopBar so it can't be missed */}
+      {syncStatus === "error" && (
+        <div style={{
+          background: "rgba(232,69,69,0.08)",
+          borderBottom: "1px solid rgba(232,69,69,0.2)",
+          padding: "10px 24px",
+          display: "flex", alignItems: "center", justifyContent: "space-between",
+          gap: 12, flexWrap: "wrap",
+        }}>
+          <span style={{ color: theme.red, fontSize: 13, fontFamily: "'DM Sans',sans-serif", display: "flex", alignItems: "center", gap: 8 }}>
+            <span style={{ fontSize: 15 }}>⚠</span>
+            Could not sync with Google Drive. Your changes are saved locally.
+          </span>
+          <button
+            onClick={onReconnect}
+            style={{
+              background: theme.red, color: "#fff", border: "none",
+              borderRadius: 8, padding: "6px 16px", fontSize: 12,
+              fontFamily: "'DM Sans',sans-serif", fontWeight: 700, cursor: "pointer",
+              transition: "opacity 0.15s",
+            }}
+            onMouseEnter={(e) => e.currentTarget.style.opacity = "0.85"}
+            onMouseLeave={(e) => e.currentTarget.style.opacity = "1"}
+          >
+            Reconnect
+          </button>
+        </div>
+      )}
+    </>
   );
 }
 
