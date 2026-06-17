@@ -7,7 +7,7 @@ import { PRIORITIES, PRIORITY_ORDER } from "../../constants/appConstants";
 import { uid, todayStr, isDone } from "../../utils/helpers";
 import { useTheme } from "../../contexts/ThemeContext";
 
-function AppScreen({ section, tasks, workWindows, onBack, onCycle, onDelete, onSave, onMoveType, onViewCompleted, onProgress }) {
+function AppScreen({ section, tasks, blockedTimes, onBack, onCycle, onDelete, onSave, onMoveType, onViewCompleted, onProgress }) {
   const { theme } = useTheme();
   const [typeTab,   setTypeTab]   = useState("ondemand");
   const [search,    setSearch]    = useState("");
@@ -169,7 +169,7 @@ function AppScreen({ section, tasks, workWindows, onBack, onCycle, onDelete, onS
             <div style={{ textAlign:"center", color:theme.textMuted, padding:"48px 0", fontSize:13 }}>No tasks match your filters.</div>
           ) : (
             visible.map((t)=>(
-              <TaskCard key={t.id} task={t} onCycle={onCycle} onDelete={onDelete} onEdit={()=>setEditTask(t)} onProgress={onProgress} workWindows={workWindows} />
+              <TaskCard key={t.id} task={t} onCycle={onCycle} onDelete={onDelete} onEdit={()=>setEditTask(t)} onProgress={onProgress} blockedTimes={blockedTimes} />
             ))
           )}
         </div>

@@ -2,55 +2,58 @@
 // Smart scheduling algorithm that distributes task completion across days
 // ─────────────────────────────────────────────────────────────────────────────
 
-export const DEFAULT_WORK_WINDOWS = [
-  { day: "monday",    start: "09:00", end: "12:00", blocked: false },
-  { day: "monday",    start: "12:00", end: "13:00", blocked: true, label: "Lunch" },
-  { day: "monday",    start: "13:00", end: "17:00", blocked: false },
-  { day: "tuesday",   start: "09:00", end: "12:00", blocked: false },
-  { day: "tuesday",   start: "12:00", end: "13:00", blocked: true, label: "Lunch" },
-  { day: "tuesday",   start: "13:00", end: "17:00", blocked: false },
-  { day: "wednesday", start: "09:00", end: "12:00", blocked: false },
-  { day: "wednesday", start: "12:00", end: "13:00", blocked: true, label: "Lunch" },
-  { day: "wednesday", start: "13:00", end: "17:00", blocked: false },
-  { day: "thursday",  start: "09:00", end: "12:00", blocked: false },
-  { day: "thursday",  start: "12:00", end: "13:00", blocked: true, label: "Lunch" },
-  { day: "thursday",  start: "13:00", end: "17:00", blocked: false },
-  { day: "friday",    start: "09:00", end: "12:00", blocked: false },
-  { day: "friday",    start: "12:00", end: "13:00", blocked: true, label: "Lunch" },
-  { day: "friday",    start: "13:00", end: "17:00", blocked: false },
-  { day: "saturday",  start: "10:00", end: "14:00", blocked: false },
-  { day: "sunday",    start: "10:00", end: "14:00", blocked: false },
+// Default blocked times (applies to all days)
+export const DEFAULT_BLOCKED_TIMES = [
+  { start: "12:00", end: "13:00", label: "Lunch" },
 ];
 
+// Default working hours (before blocked times are subtracted)
+const WORK_START = "09:00"; // 9 AM
+const WORK_END = "17:00";   // 5 PM
+
 /**
- * Calculate available work hours per day based on work windows
+ * Calculate available work hours per day after subtracting blocked times
  */
-export function getAvailableHoursForDay(dayOfWeek, workWindows = DEFAULT_WORK_WINDOWS) {
-  const dayName = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"][dayOfWeek];
-  const windows = workWindows.filter(w => w.day === dayName && !w.blocked);
+export function getAvailableHoursForDay(blockedTimes = DEFAULT_BLOCKED_TIMES) {
+  const [startH, startM] = WORK_START.split(":").map(Number);
+  const [endH, endM] = WORK_END.split(":").map(Number);
+  let totalMinutes = (endH * 60 + endM) - (startH * 60 + startM);
   
-  let totalHours = 0;
-  windows.forEach(w => {
-    const [startH, startM] = w.start.split(":").map(Number);
-    const [endH, endM] = w.end.split(":").map(Number);
-    totalHours += (endH + endM / 60) - (startH + startM / 60);
+  // Subtract blocked times
+  blockedTimes.forEach(blocked => {
+    const [bStartH, bStartM] = blocked.start.split(":").map(Number);
+    const [bEndH, bEndM] = blocked.end.split(":").map(Number);
+    const bStart = bStartH * 60 + bStartM;
+    const bEnd = bEndH * 60 + bEndM;
+    const workStart = startH * 60 + startM;
+    const workEnd = endH * 60 + endM;
+    
+    // Only subtract if blocked time overlaps with work hours
+    if (bEnd > workStart && bStart < workEnd) {
+      const overlapStart = Math.max(bStart, workStart);
+      const overlapEnd = Math.min(bEnd, workEnd);
+      totalMinutes -= (overlapEnd - overlapStart);
+    }
   });
   
-  return totalHours;
+  return totalMinutes / 60; // Convert back to hours
 }
 
 /**
  * Get list of working days between start and deadline
  */
-export function getWorkingDays(startDate, deadlineDate, workWindows = DEFAULT_WORK_WINDOWS) {
+export function getWorkingDays(startDate, deadlineDate, blockedTimes = DEFAULT_BLOCKED_TIMES) {
   const start = new Date(startDate + "T00:00:00");
   const end = new Date(deadlineDate + "T00:00:00");
   const days = [];
+  const availableHours = getAvailableHoursForDay(blockedTimes);
   
   for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
     const dateStr = d.toISOString().split("T")[0];
     const dayOfWeek = d.getDay();
-    const availableHours = getAvailableHoursForDay(dayOfWeek, workWindows);
+    
+    // Exclude weekends if desired (optional)
+    // if (dayOfWeek === 0 || dayOfWeek === 6) continue;
     
     if (availableHours > 0) {
       days.push({
@@ -68,7 +71,7 @@ export function getWorkingDays(startDate, deadlineDate, workWindows = DEFAULT_WO
  * Distribute task completion percentage across available days
  * This is the core algorithm that creates the daily schedule
  */
-export function distributeTaskAcrossDays(task, workWindows = DEFAULT_WORK_WINDOWS) {
+export function distributeTaskAcrossDays(task, blockedTimes = DEFAULT_BLOCKED_TIMES) {
   // If no start date or deadline, can't schedule
   if (!task.startDate || !task.deadlineDate) return [];
   
@@ -82,7 +85,7 @@ export function distributeTaskAcrossDays(task, workWindows = DEFAULT_WORK_WINDOW
   const effectiveStart = task.startDate < today ? today : task.startDate;
   
   // Get working days from now until deadline
-  const workingDays = getWorkingDays(effectiveStart, task.deadlineDate, workWindows);
+  const workingDays = getWorkingDays(effectiveStart, task.deadlineDate, blockedTimes);
   
   if (workingDays.length === 0) return [];
   
@@ -113,14 +116,14 @@ export function distributeTaskAcrossDays(task, workWindows = DEFAULT_WORK_WINDOW
 /**
  * Get all tasks with their daily schedules for calendar view
  */
-export function getTasksSchedule(tasks, workWindows = DEFAULT_WORK_WINDOWS) {
+export function getTasksSchedule(tasks, blockedTimes = DEFAULT_BLOCKED_TIMES) {
   const scheduleMap = {}; // date -> [{ task, targetProgress }]
   
   tasks.forEach(task => {
     // Only schedule tasks that are not completed
     if (task.status === "Done" || task.status === "Done Late") return;
     
-    const dailySchedule = distributeTaskAcrossDays(task, workWindows);
+    const dailySchedule = distributeTaskAcrossDays(task, blockedTimes);
     
     dailySchedule.forEach(day => {
       if (!scheduleMap[day.date]) {
@@ -141,7 +144,7 @@ export function getTasksSchedule(tasks, workWindows = DEFAULT_WORK_WINDOWS) {
 /**
  * Check if a task is on track based on today's progress
  */
-export function isTaskOnTrack(task, workWindows = DEFAULT_WORK_WINDOWS) {
+export function isTaskOnTrack(task, blockedTimes = DEFAULT_BLOCKED_TIMES) {
   if (!task.startDate || !task.deadlineDate) return { onTrack: true, message: "" };
   
   const today = new Date().toISOString().split("T")[0];
@@ -159,7 +162,7 @@ export function isTaskOnTrack(task, workWindows = DEFAULT_WORK_WINDOWS) {
   }
   
   // Calculate expected progress by today
-  const workingDays = getWorkingDays(task.startDate, task.deadlineDate, workWindows);
+  const workingDays = getWorkingDays(task.startDate, task.deadlineDate, blockedTimes);
   const daysPassed = workingDays.filter(d => d.date <= today);
   
   if (daysPassed.length === 0) return { onTrack: true, message: "" };
@@ -180,11 +183,11 @@ export function isTaskOnTrack(task, workWindows = DEFAULT_WORK_WINDOWS) {
 /**
  * Get summary of today's scheduled work
  */
-export function getTodaysSummary(tasks, workWindows = DEFAULT_WORK_WINDOWS) {
+export function getTodaysSummary(tasks, blockedTimes = DEFAULT_BLOCKED_TIMES) {
   const today = new Date().toISOString().split("T")[0];
   const activeTasks = tasks.filter(t => t.status !== "Done" && t.status !== "Done Late");
   
-  const schedule = getTasksSchedule(activeTasks, workWindows);
+  const schedule = getTasksSchedule(activeTasks, blockedTimes);
   const todayTasks = schedule[today] || [];
   
   const totalTarget = todayTasks.reduce((sum, s) => sum + s.targetProgress, 0);
@@ -198,21 +201,70 @@ export function getTodaysSummary(tasks, workWindows = DEFAULT_WORK_WINDOWS) {
 }
 
 /**
- * Get work windows for a specific date
+ * Get available time windows for a specific date (work hours minus blocked times)
  */
-export function getWorkWindowsForDate(dateStr, workWindows = DEFAULT_WORK_WINDOWS) {
-  const date = new Date(dateStr + "T00:00:00");
-  const dayOfWeek = date.getDay();
-  const dayName = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"][dayOfWeek];
+export function getWorkWindowsForDate(dateStr, blockedTimes = DEFAULT_BLOCKED_TIMES) {
+  // Start with default work day (9 AM - 5 PM)
+  const [startH, startM] = WORK_START.split(":").map(Number);
+  const [endH, endM] = WORK_END.split(":").map(Number);
   
-  return workWindows
-    .filter(w => w.day === dayName)
-    .map(w => ({
-      ...w,
-      startMinutes: timeToMinutes(w.start),
-      endMinutes: timeToMinutes(w.end),
-    }))
-    .sort((a, b) => a.startMinutes - b.startMinutes);
+  const windows = [];
+  let currentStart = startH * 60 + startM;
+  const dayEnd = endH * 60 + endM;
+  
+  // Sort blocked times by start time
+  const sortedBlocked = [...blockedTimes].sort((a, b) => {
+    const aMin = timeToMinutes(a.start);
+    const bMin = timeToMinutes(b.start);
+    return aMin - bMin;
+  });
+  
+  // Create windows by splitting around blocked times
+  sortedBlocked.forEach(blocked => {
+    const blockStart = timeToMinutes(blocked.start);
+    const blockEnd = timeToMinutes(blocked.end);
+    
+    // Add work window before blocked time
+    if (currentStart < blockStart && currentStart < dayEnd) {
+      const windowEnd = Math.min(blockStart, dayEnd);
+      windows.push({
+        start: minutesToTime(currentStart),
+        end: minutesToTime(windowEnd),
+        startMinutes: currentStart,
+        endMinutes: windowEnd,
+        blocked: false
+      });
+    }
+    
+    // Add blocked window
+    if (blockStart < dayEnd && blockEnd > currentStart) {
+      const adjustedStart = Math.max(blockStart, currentStart);
+      const adjustedEnd = Math.min(blockEnd, dayEnd);
+      windows.push({
+        start: minutesToTime(adjustedStart),
+        end: minutesToTime(adjustedEnd),
+        startMinutes: adjustedStart,
+        endMinutes: adjustedEnd,
+        blocked: true,
+        label: blocked.label
+      });
+    }
+    
+    currentStart = Math.max(currentStart, blockEnd);
+  });
+  
+  // Add final work window after last blocked time
+  if (currentStart < dayEnd) {
+    windows.push({
+      start: minutesToTime(currentStart),
+      end: minutesToTime(dayEnd),
+      startMinutes: currentStart,
+      endMinutes: dayEnd,
+      blocked: false
+    });
+  }
+  
+  return windows;
 }
 
 /**
@@ -235,8 +287,8 @@ function minutesToTime(minutes) {
 /**
  * Allocate tasks to specific time slots within the work windows for a given day
  */
-export function allocateTasksToTimeSlots(tasksForDay, dateStr, workWindows = DEFAULT_WORK_WINDOWS) {
-  const dayWindows = getWorkWindowsForDate(dateStr, workWindows);
+export function allocateTasksToTimeSlots(tasksForDay, dateStr, blockedTimes = DEFAULT_BLOCKED_TIMES) {
+  const dayWindows = getWorkWindowsForDate(dateStr, blockedTimes);
   const availableWindows = dayWindows.filter(w => !w.blocked);
   
   if (availableWindows.length === 0) return [];

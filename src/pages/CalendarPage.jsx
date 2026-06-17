@@ -5,7 +5,7 @@ import { P, todayStr, isDone, toSlug } from "../utils/helpers";
 import { getTasksSchedule, isTaskOnTrack, distributeTaskAcrossDays, getWorkWindowsForDate, allocateTasksToTimeSlots } from "../utils/scheduleHelpers";
 import { useTheme } from "../contexts/ThemeContext";
 
-function CalendarPage({ tasks, sections, onProgress, workWindows }) {
+function CalendarPage({ tasks, sections, onProgress, blockedTimes }) {
   const { theme } = useTheme();
   const navigate = useNavigate();
   const [year, setYear] = useState(new Date().getFullYear());
@@ -22,8 +22,8 @@ function CalendarPage({ tasks, sections, onProgress, workWindows }) {
 
   // Get schedule for all non-routine tasks (routine tasks don't need time-based scheduling)
   const schedule = useMemo(() => 
-    getTasksSchedule(tasks.filter(t => !isDone(t) && t.taskType !== "routine"), workWindows),
-    [tasks, workWindows]
+    getTasksSchedule(tasks.filter(t => !isDone(t) && t.taskType !== "routine"), blockedTimes),
+    [tasks, blockedTimes]
   );
 
   // Calendar grid calculations
@@ -48,13 +48,13 @@ function CalendarPage({ tasks, sections, onProgress, workWindows }) {
   
   // Get work windows and task allocations for selected date
   const dayWindows = useMemo(() => 
-    selectedDate ? getWorkWindowsForDate(selectedDate, workWindows) : [],
-    [selectedDate, workWindows]
+    selectedDate ? getWorkWindowsForDate(selectedDate, blockedTimes) : [],
+    [selectedDate, blockedTimes]
   );
   
   const taskAllocations = useMemo(() => 
-    selectedDate ? allocateTasksToTimeSlots(selectedTasks, selectedDate, workWindows) : [],
-    [selectedDate, selectedTasks, workWindows]
+    selectedDate ? allocateTasksToTimeSlots(selectedTasks, selectedDate, blockedTimes) : [],
+    [selectedDate, selectedTasks, blockedTimes]
   );
 
   // Calculate daily workload (total percentage to complete)
@@ -297,7 +297,7 @@ function CalendarPage({ tasks, sections, onProgress, workWindows }) {
                 {weekDays.map((day, dayIdx) => {
                   const dateStr = day.toISOString().split("T")[0];
                   const daySchedule = schedule[dateStr] || [];
-                  const dayAllocations = allocateTasksToTimeSlots(daySchedule, dateStr, workWindows);
+                  const dayAllocations = allocateTasksToTimeSlots(daySchedule, dateStr, blockedTimes);
                   
                   // Find tasks in this time slot
                   const slotTasks = dayAllocations.filter(alloc => {
@@ -347,15 +347,31 @@ function CalendarPage({ tasks, sections, onProgress, workWindows }) {
                             }}
                           >
                             <div style={{
-                              fontWeight: 600,
-                              color: theme.text,
-                              marginBottom: 2,
-                              fontSize: 11,
-                              overflow: "hidden",
-                              textOverflow: "ellipsis",
-                              whiteSpace: "nowrap"
+                              display: "flex", alignItems: "center", justifyContent: "space-between",
+                              gap: 4, marginBottom: 2
                             }}>
-                              {alloc.task.title}
+                              <div style={{
+                                fontWeight: 600,
+                                color: theme.text,
+                                fontSize: 11,
+                                overflow: "hidden",
+                                textOverflow: "ellipsis",
+                                whiteSpace: "nowrap",
+                                flex: 1
+                              }}>
+                                {alloc.task.title}
+                              </div>
+                              <span style={{
+                                background: pr.color,
+                                color: "#fff",
+                                padding: "1px 5px",
+                                borderRadius: 3,
+                                fontSize: 9,
+                                fontWeight: 700,
+                                flexShrink: 0
+                              }}>
+                                {alloc.targetProgress}%
+                              </span>
                             </div>
                             <div style={{
                               fontSize: 9,
@@ -712,7 +728,7 @@ function CalendarPage({ tasks, sections, onProgress, workWindows }) {
                   {selectedTasks.map(({ task, targetProgress }) => {
                     const pr = P(task.priority);
                     const section = sections.find(s => s.id === task.sectionId);
-                    const trackInfo = isTaskOnTrack(task, workWindows);
+                    const trackInfo = isTaskOnTrack(task, blockedTimes);
                     const allocation = taskAllocations.find(a => a.task.id === task.id);
 
                     return (

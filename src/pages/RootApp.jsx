@@ -17,34 +17,34 @@ import AddSectionModal from "../components/sections/AddSectionModal";
 import AppScreen       from "../components/tasks/AppScreen";
 import CompletedScreen from "../components/completed/CompletedScreen";
 import CalendarPage    from "./CalendarPage";
-import WorkWindowsModal from "../components/settings/WorkWindowsModal";
+import BlockedTimesModal from "../components/settings/BlockedTimesModal";
 import Toast           from "../components/common/Toast";
 
 import { uid, todayStr, toSlug } from "../utils/helpers";
 import { registerTokenRefresher } from "../utils/driveApi";
-import { DEFAULT_WORK_WINDOWS } from "../utils/scheduleHelpers";
+import { DEFAULT_BLOCKED_TIMES } from "../utils/scheduleHelpers";
 import { useTheme } from "../contexts/ThemeContext";
 
 const TOKEN_KEY  = "flow_drive_token";
-const WORK_WINDOWS_KEY = "flow_work_windows";
+const BLOCKED_TIMES_KEY = "flow_blocked_times";
 const saveToken  = (t) => localStorage.setItem(TOKEN_KEY, t);
 const loadToken  = ()  => localStorage.getItem(TOKEN_KEY) || null;
 const clearToken = ()  => localStorage.removeItem(TOKEN_KEY);
 
-const loadWorkWindows = () => {
+const loadBlockedTimes = () => {
   try {
-    const saved = localStorage.getItem(WORK_WINDOWS_KEY);
-    return saved ? JSON.parse(saved) : DEFAULT_WORK_WINDOWS;
+    const saved = localStorage.getItem(BLOCKED_TIMES_KEY);
+    return saved ? JSON.parse(saved) : DEFAULT_BLOCKED_TIMES;
   } catch {
-    return DEFAULT_WORK_WINDOWS;
+    return DEFAULT_BLOCKED_TIMES;
   }
 };
 
-const saveWorkWindows = (windows) => {
+const saveBlockedTimes = (times) => {
   try {
-    localStorage.setItem(WORK_WINDOWS_KEY, JSON.stringify(windows));
+    localStorage.setItem(BLOCKED_TIMES_KEY, JSON.stringify(times));
   } catch {
-    console.error("Failed to save work windows");
+    console.error("Failed to save blocked times");
   }
 };
 
@@ -57,8 +57,8 @@ export default function RootApp() {
   const [user,        setUser]        = useState(null);
   const [accessToken, setAccessToken] = useState(loadToken);
   const [authLoading, setAuthLoading] = useState(true);
-  const [workWindows, setWorkWindows] = useState(loadWorkWindows);
-  const [workWindowsOpen, setWorkWindowsOpen] = useState(false);
+  const [blockedTimes, setBlockedTimes] = useState(loadBlockedTimes);
+  const [blockedTimesOpen, setBlockedTimesOpen] = useState(false);
 
   const { toast, showToast } = useToast();
   const navigate = useNavigate();
@@ -290,10 +290,10 @@ export default function RootApp() {
     persistSections(reordered);
   }, [persistSections]);
 
-  const handleSaveWorkWindows = useCallback((windows) => {
-    setWorkWindows(windows);
-    saveWorkWindows(windows);
-    showToast("Work windows updated successfully!", "success");
+  const handleSaveBlockedTimes = useCallback((times) => {
+    setBlockedTimes(times);
+    saveBlockedTimes(times);
+    showToast("Blocked times updated successfully!", "success");
   }, [showToast]);
 
   // ── Shared props bundle passed into route components ──────────────────────
@@ -327,15 +327,13 @@ export default function RootApp() {
 
   return (
     <div style={{ minHeight:"100vh", background:theme.bg, color:theme.text, transition:"background 0.3s ease, color 0.3s ease" }}>
-      <TopBar 
-        user={user} 
-        syncStatus={syncStatus} 
-        onSignOut={handleSignOut} 
-        onReconnect={handleReconnect}
-        onOpenWorkWindows={() => setWorkWindowsOpen(true)}
-      />
-
-      <Routes>
+        <TopBar
+          user={user}
+          syncStatus={syncStatus}
+          onSignOut={handleSignOut}
+          onReconnect={handleReconnect}
+          onOpenBlockedTimes={() => setBlockedTimesOpen(true)}
+        />      <Routes>
         <Route index element={<SectionsScreenWrapper {...sharedProps} />} />
         <Route path="calendar" element={<CalendarPage {...sharedProps} />} />
         {/* /completed must be explicit before /:sectionSlug — otherwise React Router
@@ -443,7 +441,7 @@ function CompletedScreenWrapper({ tasks, sections, syncStatus, handleDelete }) {
 // Shared UI pieces
 // ─────────────────────────────────────────────────────────────────────────────
 
-function TopBar({ user, syncStatus, onSignOut, onReconnect, onOpenWorkWindows }) {
+function TopBar({ user, syncStatus, onSignOut, onReconnect, onOpenBlockedTimes }) {
   const navigate = useNavigate();
   const location = useLocation();
   const { theme, toggle } = useTheme();
@@ -484,10 +482,10 @@ function TopBar({ user, syncStatus, onSignOut, onReconnect, onOpenWorkWindows })
           {syncStatus === "loading" && <span style={{ color:theme.blue,   fontSize:11 }}>↓ Loading…</span>}
           <span style={{ color:theme.textMuted, fontSize:12 }}>{user.displayName || user.email}</span>
 
-          {/* Work Windows Settings */}
+          {/* Blocked Times Settings */}
           <button
-            onClick={onOpenWorkWindows}
-            title="Configure work hours"
+            onClick={onOpenBlockedTimes}
+            title="Configure blocked times"
             style={{
               background: theme.bgInput,
               border: `1px solid ${theme.border}`,
@@ -502,7 +500,7 @@ function TopBar({ user, syncStatus, onSignOut, onReconnect, onOpenWorkWindows })
             onMouseEnter={(e) => { e.currentTarget.style.borderColor = theme.orange; e.currentTarget.style.background = theme.orangeDim; }}
             onMouseLeave={(e) => { e.currentTarget.style.borderColor = theme.border; e.currentTarget.style.background = theme.bgInput; }}
           >
-            ⏰
+            🚫
           </button>
 
           {/* Theme toggle */}

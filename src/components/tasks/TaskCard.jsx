@@ -2,7 +2,7 @@ import { P, getDisplayStatus, getStatusBadge, todayStr } from "../../utils/helpe
 import { isTaskOnTrack, distributeTaskAcrossDays } from "../../utils/scheduleHelpers";
 import { useTheme } from "../../contexts/ThemeContext";
 
-function TaskCard({ task, onCycle, onDelete, onEdit, onProgress, workWindows }) {
+function TaskCard({ task, onCycle, onDelete, onEdit, onProgress, blockedTimes }) {
   const { theme } = useTheme();
   const pr      = P(task.priority);
   const ds      = getDisplayStatus(task);
@@ -13,8 +13,8 @@ function TaskCard({ task, onCycle, onDelete, onEdit, onProgress, workWindows }) 
   const trackBg = theme.mode === "dark" ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.10)";
 
   // Get tracking info and today's target
-  const trackInfo = isTaskOnTrack(task, workWindows);
-  const schedule = distributeTaskAcrossDays(task, workWindows);
+  const trackInfo = isTaskOnTrack(task, blockedTimes);
+  const schedule = distributeTaskAcrossDays(task, blockedTimes);
   const todaySchedule = schedule.find(s => s.date === today);
   const todayTarget = todaySchedule ? todaySchedule.targetProgress : 0;
 
