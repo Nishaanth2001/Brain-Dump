@@ -298,7 +298,7 @@ export default function RootApp() {
 
   // ── Shared props bundle passed into route components ──────────────────────
   const sharedProps = {
-    tasks, sections, user, syncStatus, workWindows,
+    tasks, sections, user, syncStatus, blockedTimes,
     handleCycle, handleDelete, handleSave, handleMoveType, handleProgress,
     handleAddSection, handleDeleteSection, handleRenameSection, handleReorderSections,
     showToast,
@@ -344,11 +344,11 @@ export default function RootApp() {
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
 
-      <WorkWindowsModal
-        open={workWindowsOpen}
-        onClose={() => setWorkWindowsOpen(false)}
-        workWindows={workWindows}
-        onSave={handleSaveWorkWindows}
+      <BlockedTimesModal
+        open={blockedTimesOpen}
+        onClose={() => setBlockedTimesOpen(false)}
+        blockedTimes={blockedTimes}
+        onSave={handleSaveBlockedTimes}
       />
 
       <Toast message={toast.msg} type={toast.type} visible={toast.visible} />
@@ -386,25 +386,22 @@ function SectionsScreenWrapper({ tasks, sections, user, handleAddSection, handle
   );
 }
 
-function AppScreenWrapper({ tasks, sections, syncStatus, workWindows, handleCycle, handleDelete, handleSave, handleMoveType, handleProgress }) {
+function AppScreenWrapper({ tasks, sections, syncStatus, blockedTimes, handleCycle, handleDelete, handleSave, handleMoveType, handleProgress }) {
   const { sectionSlug } = useParams();
   const navigate        = useNavigate();
 
-  // Support both old sections (no slug field) and new ones
   const section = sections.find(
     (s) => (s.slug || toSlug(s.name)) === sectionSlug
   );
 
-  // Sections haven't loaded from Drive yet — show spinner
   if (sections.length === 0 && syncStatus === "loading") return <Spinner label="Loading…" />;
-  // Slug doesn't match any section — redirect home
   if (!section) return <Navigate to="/" replace />;
 
   return (
     <AppScreen
       section={section}
       tasks={tasks}
-      workWindows={workWindows}
+      blockedTimes={blockedTimes}
       onBack={() => navigate("/")}
       onCycle={handleCycle}
       onDelete={handleDelete}
