@@ -284,8 +284,12 @@ function minutesToTime(minutes) {
   return `${String(hours).padStart(2, "0")}:${String(mins).padStart(2, "0")}`;
 }
 
+// Gap between consecutive tasks (in minutes)
+export const TASK_GAP_MINUTES = 10;
+
 /**
  * Allocate tasks to specific time slots within the work windows for a given day
+ * Respects manually pinned start times (task.scheduledStartTime)
  */
 export function allocateTasksToTimeSlots(tasksForDay, dateStr, blockedTimes = DEFAULT_BLOCKED_TIMES, workStart = DEFAULT_WORK_START, workEnd = DEFAULT_WORK_END) {
   const dayWindows = getWorkWindowsForDate(dateStr, blockedTimes, workStart, workEnd);
@@ -297,14 +301,55 @@ export function allocateTasksToTimeSlots(tasksForDay, dateStr, blockedTimes = DE
   const totalAvailableMinutes = availableWindows.reduce((sum, w) => 
     sum + (w.endMinutes - w.startMinutes), 0
   );
-  
-  // Allocate each task to time slots proportionally
+
+  // Separate pinned tasks (have a manual start time) from flexible tasks
+  const todayDateStr = new Date().toISOString().split("T")[0];
+  const pinnedTasks = [];
+  const flexibleTasks = [];
+
+  tasksForDay.forEach(item => {
+    const task = item.task;
+    const pinned = task.scheduledStartTime;
+    const scope = task.scheduledStartScope || "always";
+    
+    // Only use pinned time if scope is "always" OR scope is "today" and it IS today
+    if (pinned && (scope === "always" || (scope === "today" && dateStr === todayDateStr))) {
+      pinnedTasks.push({ ...item, pinnedMinute: timeToMinutes(pinned) });
+    } else {
+      flexibleTasks.push(item);
+    }
+  });
+
+  // Sort pinned tasks by their start time
+  pinnedTasks.sort((a, b) => a.pinnedMinute - b.pinnedMinute);
+
   const allocations = [];
+
+  // First, allocate pinned tasks
+  pinnedTasks.forEach(({ task, targetProgress, pinnedMinute }) => {
+    const taskMinutes = Math.round((targetProgress / 100) * totalAvailableMinutes);
+    if (taskMinutes <= 0) return;
+
+    allocations.push({
+      task,
+      targetProgress,
+      startTime: minutesToTime(pinnedMinute),
+      endTime: minutesToTime(pinnedMinute + taskMinutes),
+      startMinutes: pinnedMinute,
+      endMinutes: pinnedMinute + taskMinutes,
+      durationMinutes: taskMinutes,
+      pinned: true,
+    });
+  });
+
+  // Sort allocations by start time for gap calculation
+  allocations.sort((a, b) => a.startMinutes - b.startMinutes);
+
+  // Now allocate flexible tasks around pinned ones
   let currentWindowIndex = 0;
   let currentMinuteInWindow = availableWindows[0]?.startMinutes || 0;
   
-  tasksForDay.forEach(({ task, targetProgress }) => {
-    // Calculate how many minutes this task should take
+  flexibleTasks.forEach(({ task, targetProgress }, idx) => {
     const taskMinutes = Math.round((targetProgress / 100) * totalAvailableMinutes);
     let remainingMinutes = taskMinutes;
     
@@ -314,11 +359,21 @@ export function allocateTasksToTimeSlots(tasksForDay, dateStr, blockedTimes = DE
       const availableInWindow = windowEndMinute - currentMinuteInWindow;
       
       if (availableInWindow <= 0) {
-        // Move to next window
         currentWindowIndex++;
         if (currentWindowIndex < availableWindows.length) {
           currentMinuteInWindow = availableWindows[currentWindowIndex].startMinutes;
         }
+        continue;
+      }
+
+      // Check if current position overlaps with any pinned task
+      const overlappingPinned = allocations.find(a => 
+        a.pinned && currentMinuteInWindow < a.endMinutes && (currentMinuteInWindow + remainingMinutes) > a.startMinutes
+      );
+
+      if (overlappingPinned) {
+        // Skip past the pinned task + gap
+        currentMinuteInWindow = overlappingPinned.endMinutes + TASK_GAP_MINUTES;
         continue;
       }
       
@@ -332,12 +387,16 @@ export function allocateTasksToTimeSlots(tasksForDay, dateStr, blockedTimes = DE
         startMinutes: currentMinuteInWindow,
         endMinutes: currentMinuteInWindow + minutesToUse,
         durationMinutes: minutesToUse,
+        pinned: false,
       });
       
-      currentMinuteInWindow += minutesToUse;
+      currentMinuteInWindow += minutesToUse + TASK_GAP_MINUTES; // Add gap after each task
       remainingMinutes -= minutesToUse;
     }
   });
+
+  // Sort final allocations by start time
+  allocations.sort((a, b) => a.startMinutes - b.startMinutes);
   
   return allocations;
 }

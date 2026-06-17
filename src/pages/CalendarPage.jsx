@@ -1,7 +1,7 @@
 import { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { MONTHS, DOWS } from "../constants/appConstants";
-import { P, todayStr, isDone, toSlug } from "../utils/helpers";
+import { P, todayStr, isDone, toSlug, formatDuration } from "../utils/helpers";
 import { getTasksSchedule, isTaskOnTrack, distributeTaskAcrossDays, getWorkWindowsForDate, allocateTasksToTimeSlots } from "../utils/scheduleHelpers";
 import { useTheme } from "../contexts/ThemeContext";
 
@@ -640,7 +640,7 @@ function CalendarPage({ tasks, sections, onProgress, blockedTimes, workHours }) 
                               fontWeight: 700,
                               letterSpacing: "0.3px"
                             }}>
-                              {alloc.startTime} • {alloc.durationMinutes}m
+                              {alloc.startTime} • {formatDuration(alloc.durationMinutes)}
                             </div>
                           </div>
                         );
@@ -920,6 +920,18 @@ function CalendarPage({ tasks, sections, onProgress, blockedTimes, workHours }) 
                                 flexWrap: "wrap"
                               }}>
                                 <span>🕐 {alloc.startTime} - {alloc.endTime}</span>
+                                {alloc.pinned && (
+                                  <span style={{
+                                    background: theme.orangeDim,
+                                    color: theme.orange,
+                                    padding: "2px 6px",
+                                    borderRadius: 4,
+                                    fontSize: 8,
+                                    fontWeight: 800,
+                                  }}>
+                                    📌 PINNED
+                                  </span>
+                                )}
                                 <span style={{
                                   background: pr.color,
                                   color: "#fff",
@@ -927,7 +939,7 @@ function CalendarPage({ tasks, sections, onProgress, blockedTimes, workHours }) 
                                   borderRadius: 4,
                                   fontSize: 9
                                 }}>
-                                  {alloc.durationMinutes} min
+                                  {formatDuration(alloc.durationMinutes)}
                                 </span>
                               </div>
                               <div style={{
@@ -1026,7 +1038,7 @@ function CalendarPage({ tasks, sections, onProgress, blockedTimes, workHours }) 
                           )}
                           {allocation && (
                             <span style={{ background: theme.orangeDim, color: theme.orange, fontSize: 9, padding: "3px 8px", borderRadius: 4, fontWeight: 600 }}>
-                              ⏱️ {allocation.durationMinutes} min
+                              ⏱️ {formatDuration(allocation.durationMinutes)}
                             </span>
                           )}
                         </div>

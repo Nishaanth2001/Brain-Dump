@@ -24,6 +24,8 @@ function EditTaskModal({ open, task, onClose, onSave, onMoveType }) {
         priority:     task.priority     || "HH",
         notes:        task.notes        || "",
         recurringFrequency: task.recurringFrequency || "daily",
+        scheduledStartTime: task.scheduledStartTime || "",
+        scheduledStartScope: task.scheduledStartScope || "always",
       });
       setTags(task.tags || []);
     }
@@ -100,6 +102,43 @@ function EditTaskModal({ open, task, onClose, onSave, onMoveType }) {
           </select>
         </Field>
       )}
+
+      {/* Manual Start Time Scheduling */}
+      <Field label="⏰ Scheduled Start Time (Optional)">
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+          <input
+            type="time"
+            value={form.scheduledStartTime || ""}
+            onChange={(e) => set("scheduledStartTime", e.target.value)}
+            placeholder="Leave empty for auto"
+            style={fs}
+          />
+          <select
+            value={form.scheduledStartScope || "always"}
+            onChange={(e) => set("scheduledStartScope", e.target.value)}
+            style={fs}
+            disabled={!form.scheduledStartTime}
+          >
+            <option value="always">Always (every day)</option>
+            <option value="today">Today only</option>
+          </select>
+        </div>
+        {form.scheduledStartTime && (
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8 }}>
+            <span style={{ fontSize: 11, color: theme.textMuted }}>
+              {form.scheduledStartScope === "always"
+                ? "📌 This task will start at this time every scheduled day"
+                : "📌 This time override applies only for today"}
+            </span>
+            <button
+              onClick={() => { set("scheduledStartTime", ""); set("scheduledStartScope", "always"); }}
+              style={{ background: "none", border: `1px solid ${theme.border}`, borderRadius: 6, padding: "2px 8px", fontSize: 10, color: theme.textMuted, cursor: "pointer" }}
+            >
+              Clear
+            </button>
+          </div>
+        )}
+      </Field>
 
       <Field label="Notes &amp; Documentation">
         <textarea value={form.notes||""} onChange={(e)=>set("notes",e.target.value)}

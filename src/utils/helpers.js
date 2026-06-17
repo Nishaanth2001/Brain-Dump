@@ -5,6 +5,15 @@ export const todayStr = () => new Date().toISOString().split("T")[0];
 export const P        = (key) => PRIORITIES.find((p) => p.key === key) || PRIORITIES[0];
 export const isDone   = (t) => t.status === "Done" || t.status === "Done Late";
 
+// Format duration: >60 min shows as hours + minutes
+export const formatDuration = (minutes) => {
+  if (!minutes || minutes <= 0) return "0m";
+  if (minutes < 60) return `${Math.round(minutes)}m`;
+  const h = Math.floor(minutes / 60);
+  const m = Math.round(minutes % 60);
+  return m > 0 ? `${h}h ${m}m` : `${h}h`;
+};
+
 // Format date for display
 export const formatDate = (dateStr) => {
   if (!dateStr) return "";
