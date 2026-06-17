@@ -1,9 +1,9 @@
 import { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { MONTHS, DOWS } from "../../constants/appConstants";
-import { P, todayStr, isDone, toSlug } from "../../utils/helpers";
-import { getTasksSchedule, isTaskOnTrack, distributeTaskAcrossDays } from "../../utils/scheduleHelpers";
-import { useTheme } from "../../contexts/ThemeContext";
+import { MONTHS, DOWS } from "../constants/appConstants";
+import { P, todayStr, isDone, toSlug } from "../utils/helpers";
+import { getTasksSchedule, isTaskOnTrack, distributeTaskAcrossDays } from "../utils/scheduleHelpers";
+import { useTheme } from "../contexts/ThemeContext";
 
 function CalendarPage({ tasks, sections, onProgress, workWindows }) {
   const { theme } = useTheme();
