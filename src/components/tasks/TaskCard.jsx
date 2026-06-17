@@ -61,8 +61,8 @@ function TaskCard({ task, onCycle, onDelete, onEdit, onProgress, workWindows }) 
             ))}
           </div>
 
-          {/* ── Progress slider — only shown while In Progress ── */}
-          {isIP && (
+          {/* ── Progress slider — only shown while In Progress for non-routine tasks ── */}
+          {isIP && task.taskType !== "routine" && (
             <div
               onClick={(e) => e.stopPropagation()}
               style={{ marginTop:10, paddingTop:10, borderTop:`1px solid ${theme.border}` }}
@@ -88,8 +88,8 @@ function TaskCard({ task, onCycle, onDelete, onEdit, onProgress, workWindows }) 
             </div>
           )}
 
-          {/* Today's Target Indicator (shown only for In Progress tasks with schedule) */}
-          {isIP && todayTarget > 0 && (
+          {/* Today's Target Indicator (shown only for In Progress non-routine tasks with schedule) */}
+          {isIP && task.taskType !== "routine" && todayTarget > 0 && (
             <div style={{ marginTop: 10, paddingTop: 10, borderTop: `1px solid ${theme.border}` }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
                 <span style={{ color: theme.textDim, fontSize: 9, fontWeight: 700, letterSpacing: "0.05em" }}>

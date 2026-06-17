@@ -13,9 +13,9 @@ function CalendarPage({ tasks, sections, onProgress, workWindows }) {
   const [selectedDate, setSelectedDate] = useState(null);
   const today = todayStr();
 
-  // Get schedule for all tasks
+  // Get schedule for all non-routine tasks (routine tasks don't need time-based scheduling)
   const schedule = useMemo(() => 
-    getTasksSchedule(tasks.filter(t => !isDone(t)), workWindows),
+    getTasksSchedule(tasks.filter(t => !isDone(t) && t.taskType !== "routine"), workWindows),
     [tasks, workWindows]
   );
 
@@ -66,7 +66,7 @@ function CalendarPage({ tasks, sections, onProgress, workWindows }) {
   };
 
   return (
-    <div style={{ maxWidth: 1400, margin: "0 auto", padding: "24px 20px" }}>
+    <div style={{ maxWidth: 1600, margin: "0 auto", padding: "24px 20px" }}>
       {/* Header */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24, flexWrap: "wrap", gap: 12 }}>
         <div>
@@ -92,7 +92,8 @@ function CalendarPage({ tasks, sections, onProgress, workWindows }) {
         </button>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 380px", gap: 24, alignItems: "start" }}>
+      {/* Calendar Grid - Full Width */}
+      <div style={{ marginBottom: 24 }}>
         {/* Calendar Grid */}
         <div style={{
           background: theme.bgCard, border: `1px solid ${theme.border}`,
@@ -194,283 +195,362 @@ function CalendarPage({ tasks, sections, onProgress, workWindows }) {
             ))}
           </div>
         </div>
+      </div>
 
-        {/* Selected Date Details - Timeline View */}
+      {/* Day View - Full Width Below Calendar */}
+      {selectedDate && (
         <div style={{
           background: theme.bgCard, border: `1px solid ${theme.border}`,
-          borderRadius: 16, padding: 20, position: "sticky", top: 80,
-          maxHeight: "calc(100vh - 120px)", overflowY: "auto",
-          transition: "background 0.3s ease"
+          borderRadius: 16, padding: 32, transition: "background 0.3s ease",
+          marginTop: 24
         }}>
-          {selectedDate ? (
-            <>
-              <div style={{
-                fontSize: 11, color: theme.textMuted, fontWeight: 700,
-                marginBottom: 12, letterSpacing: "0.07em", textTransform: "uppercase"
-              }}>
-                📅 {new Date(selectedDate + "T00:00:00").toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })}
-              </div>
+          <div style={{
+            fontSize: 13, color: theme.textMuted, fontWeight: 700,
+            marginBottom: 20, letterSpacing: "0.07em", textTransform: "uppercase",
+            display: "flex", alignItems: "center", justifyContent: "space-between"
+          }}>
+            <span>
+              📅 {new Date(selectedDate + "T00:00:00").toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" })}
+            </span>
+            <button
+              onClick={() => setSelectedDate(null)}
+              style={{
+                background: "none", border: `1px solid ${theme.border}`,
+                borderRadius: 8, padding: "6px 12px", color: theme.textMuted,
+                fontSize: 11, cursor: "pointer", fontFamily: "'DM Sans',sans-serif",
+                fontWeight: 600, transition: "all 0.15s"
+              }}
+              onMouseEnter={(e) => { e.currentTarget.style.borderColor = theme.red; e.currentTarget.style.color = theme.red; }}
+              onMouseLeave={(e) => { e.currentTarget.style.borderColor = theme.border; e.currentTarget.style.color = theme.textMuted; }}
+            >
+              ✕ Close
+            </button>
+          </div>
 
-              {selectedTasks.length === 0 ? (
-                <div style={{ textAlign: "center", padding: "40px 20px", color: theme.textMuted, fontSize: 13 }}>
-                  No tasks scheduled for this day
+          {selectedTasks.length === 0 ? (
+            <div style={{ textAlign: "center", padding: "60px 20px", color: theme.textMuted, fontSize: 14 }}>
+              <div style={{ fontSize: 48, marginBottom: 16 }}>🗓️</div>
+              No tasks scheduled for this day
+            </div>
+          ) : (
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 400px", gap: 32 }}>
+              {/* Timeline View - Left Side */}
+              <div>
+                <div style={{
+                  background: theme.bgInput, borderRadius: 8, padding: "12px 16px",
+                  marginBottom: 20, display: "flex", justifyContent: "space-between",
+                  alignItems: "center"
+                }}>
+                  <span style={{ color: theme.textMuted, fontSize: 13, fontWeight: 600 }}>Daily Target</span>
+                  <span style={{
+                    color: dailyWorkload[selectedDate] > 100 ? theme.red : theme.orange,
+                    fontSize: 18, fontWeight: 700
+                  }}>
+                    {dailyWorkload[selectedDate]}%
+                  </span>
                 </div>
-              ) : (
-                <>
-                  <div style={{
-                    background: theme.bgInput, borderRadius: 8, padding: "10px 12px",
-                    marginBottom: 16, display: "flex", justifyContent: "space-between",
-                    alignItems: "center"
-                  }}>
-                    <span style={{ color: theme.textMuted, fontSize: 12, fontWeight: 600 }}>Daily Target</span>
-                    <span style={{
-                      color: dailyWorkload[selectedDate] > 100 ? theme.red : theme.orange,
-                      fontSize: 15, fontWeight: 700
-                    }}>
-                      {dailyWorkload[selectedDate]}%
-                    </span>
-                  </div>
 
-                  {/* Timeline View */}
-                  <div style={{ 
-                    background: theme.bgInput, 
-                    borderRadius: 10, 
-                    padding: "12px 8px",
-                    position: "relative"
-                  }}>
-                    <div style={{ 
-                      fontSize: 10, 
-                      color: theme.textMuted, 
-                      fontWeight: 700, 
-                      marginBottom: 10,
-                      letterSpacing: "0.05em"
+                <div style={{
+                  fontSize: 12,
+                  color: theme.text,
+                  fontWeight: 700,
+                  marginBottom: 16,
+                  letterSpacing: "0.05em"
+                }}>
+                  ⏰ DAILY TIMELINE
+                </div>
+
+                {dayWindows.map((window, idx) => {
+                  const heightPerMinute = 1.2; // Increased for more space
+                  const windowDuration = window.endMinutes - window.startMinutes;
+                  const windowHeight = windowDuration * heightPerMinute;
+
+                  // Get tasks allocated to this window
+                  const windowTasks = taskAllocations.filter(alloc =>
+                    alloc.startMinutes >= window.startMinutes &&
+                    alloc.startMinutes < window.endMinutes
+                  );
+
+                  return (
+                    <div key={idx} style={{
+                      marginBottom: 16,
+                      position: "relative"
                     }}>
-                      DAILY TIMELINE
-                    </div>
-                    
-                    {dayWindows.map((window, idx) => {
-                      const heightPerMinute = 0.5; // pixels per minute
-                      const windowHeight = (window.endMinutes - window.startMinutes) * heightPerMinute;
-                      
-                      // Get tasks allocated to this window
-                      const windowTasks = taskAllocations.filter(alloc => 
-                        alloc.startMinutes >= window.startMinutes && 
-                        alloc.startMinutes < window.endMinutes
-                      );
-                      
-                      return (
-                        <div key={idx} style={{ 
-                          marginBottom: 4,
-                          position: "relative"
-                        }}>
-                          {/* Time label */}
-                          <div style={{
+                      {/* Time label */}
+                      <div style={{
+                        fontSize: 11,
+                        color: theme.text,
+                        fontWeight: 700,
+                        marginBottom: 8,
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 10
+                      }}>
+                        <span>{window.start} - {window.end}</span>
+                        <span style={{ color: theme.textDim, fontSize: 10, fontWeight: 500 }}>
+                          ({windowDuration} min)
+                        </span>
+                        {window.blocked && (
+                          <span style={{
+                            background: theme.redDim,
+                            color: theme.red,
+                            padding: "3px 10px",
+                            borderRadius: 5,
                             fontSize: 9,
-                            color: theme.textDim,
-                            fontWeight: 600,
-                            marginBottom: 2,
+                            fontWeight: 700
+                          }}>
+                            🚫 {window.label || "BLOCKED"}
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Window block */}
+                      <div style={{
+                        background: window.blocked
+                          ? "repeating-linear-gradient(45deg, rgba(232,69,69,0.05), rgba(232,69,69,0.05) 10px, rgba(232,69,69,0.1) 10px, rgba(232,69,69,0.1) 20px)"
+                          : theme.mode === "dark" ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.04)",
+                        border: `1px solid ${window.blocked ? theme.redBorder : theme.border}`,
+                        borderRadius: 10,
+                        minHeight: Math.max(windowHeight, 60),
+                        position: "relative",
+                        padding: 8
+                      }}>
+                        {!window.blocked && windowTasks.length === 0 && (
+                          <div style={{
                             display: "flex",
                             alignItems: "center",
-                            gap: 6
+                            justifyContent: "center",
+                            height: "100%",
+                            color: theme.textDim,
+                            fontSize: 12,
+                            fontStyle: "italic"
                           }}>
-                            <span>{window.start} - {window.end}</span>
-                            {window.blocked && (
-                              <span style={{
-                                background: theme.redDim,
-                                color: theme.red,
-                                padding: "1px 6px",
-                                borderRadius: 3,
-                                fontSize: 8,
-                                fontWeight: 700
-                              }}>
-                                {window.label || "BLOCKED"}
-                              </span>
-                            )}
+                            Free time
                           </div>
-                          
-                          {/* Window block */}
-                          <div style={{
-                            background: window.blocked 
-                              ? "repeating-linear-gradient(45deg, rgba(232,69,69,0.05), rgba(232,69,69,0.05) 10px, rgba(232,69,69,0.1) 10px, rgba(232,69,69,0.1) 20px)"
-                              : theme.mode === "dark" ? "rgba(255,255,255,0.03)" : "rgba(0,0,0,0.03)",
-                            border: `1px solid ${window.blocked ? theme.redBorder : theme.border}`,
-                            borderRadius: 6,
-                            minHeight: Math.max(windowHeight, 30),
-                            position: "relative",
-                            overflow: "hidden"
-                          }}>
-                            {!window.blocked && windowTasks.map((alloc, taskIdx) => {
-                              const pr = P(alloc.task.priority);
-                              const offsetFromWindowStart = alloc.startMinutes - window.startMinutes;
-                              const topPosition = offsetFromWindowStart * heightPerMinute;
-                              const taskHeight = alloc.durationMinutes * heightPerMinute;
-                              
-                              return (
-                                <div
-                                  key={taskIdx}
-                                  style={{
-                                    position: "absolute",
-                                    top: topPosition,
-                                    left: 4,
-                                    right: 4,
-                                    height: Math.max(taskHeight, 24),
-                                    background: `linear-gradient(135deg, ${pr.color}22, ${pr.color}11)`,
-                                    border: `1px solid ${pr.color}66`,
-                                    borderLeft: `3px solid ${pr.color}`,
-                                    borderRadius: 4,
-                                    padding: "4px 6px",
-                                    display: "flex",
-                                    flexDirection: "column",
-                                    justifyContent: "center",
-                                    cursor: "pointer",
-                                    transition: "all 0.15s"
-                                  }}
-                                  onClick={() => {
-                                    const section = sections.find(s => s.id === alloc.task.sectionId);
-                                    if (section) navigate(`/${section.slug || toSlug(section.name)}`);
-                                  }}
-                                  onMouseEnter={(e) => {
-                                    e.currentTarget.style.background = `linear-gradient(135deg, ${pr.color}33, ${pr.color}22)`;
-                                    e.currentTarget.style.transform = "translateX(2px)";
-                                  }}
-                                  onMouseLeave={(e) => {
-                                    e.currentTarget.style.background = `linear-gradient(135deg, ${pr.color}22, ${pr.color}11)`;
-                                    e.currentTarget.style.transform = "translateX(0)";
-                                  }}
-                                >
-                                  <div style={{
-                                    fontSize: 9,
-                                    fontWeight: 700,
-                                    color: pr.color,
-                                    marginBottom: 2,
-                                    whiteSpace: "nowrap",
-                                    overflow: "hidden",
-                                    textOverflow: "ellipsis"
-                                  }}>
-                                    {alloc.startTime} - {alloc.endTime}
-                                  </div>
-                                  <div style={{
-                                    fontSize: 10,
-                                    fontWeight: 600,
-                                    color: theme.text,
-                                    whiteSpace: "nowrap",
-                                    overflow: "hidden",
-                                    textOverflow: "ellipsis"
-                                  }}>
-                                    {alloc.task.title}
-                                  </div>
-                                  <div style={{
-                                    fontSize: 8,
-                                    color: theme.textMuted,
-                                    marginTop: 2
-                                  }}>
-                                    {alloc.targetProgress}% target • {alloc.durationMinutes} min
-                                  </div>
-                                </div>
-                              );
-                            })}
-                            
-                            {window.blocked && (
+                        )}
+
+                        {!window.blocked && windowTasks.map((alloc, taskIdx) => {
+                          const pr = P(alloc.task.priority);
+                          const offsetFromWindowStart = alloc.startMinutes - window.startMinutes;
+                          const topPosition = offsetFromWindowStart * heightPerMinute;
+                          const taskHeight = alloc.durationMinutes * heightPerMinute;
+
+                          return (
+                            <div
+                              key={taskIdx}
+                              style={{
+                                position: "absolute",
+                                top: topPosition + 8,
+                                left: 8,
+                                right: 8,
+                                minHeight: Math.max(taskHeight - 4, 50),
+                                background: `linear-gradient(135deg, ${pr.color}15, ${pr.color}08)`,
+                                border: `2px solid ${pr.color}`,
+                                borderRadius: 8,
+                                padding: "10px 12px",
+                                display: "flex",
+                                flexDirection: "column",
+                                justifyContent: "center",
+                                cursor: "pointer",
+                                transition: "all 0.2s",
+                                boxShadow: `0 2px 8px ${pr.color}22`
+                              }}
+                              onClick={() => {
+                                const section = sections.find(s => s.id === alloc.task.sectionId);
+                                if (section) navigate(`/${section.slug || toSlug(section.name)}`);
+                              }}
+                              onMouseEnter={(e) => {
+                                e.currentTarget.style.background = `linear-gradient(135deg, ${pr.color}25, ${pr.color}15)`;
+                                e.currentTarget.style.transform = "translateY(-2px)";
+                                e.currentTarget.style.boxShadow = `0 4px 16px ${pr.color}33`;
+                              }}
+                              onMouseLeave={(e) => {
+                                e.currentTarget.style.background = `linear-gradient(135deg, ${pr.color}15, ${pr.color}08)`;
+                                e.currentTarget.style.transform = "translateY(0)";
+                                e.currentTarget.style.boxShadow = `0 2px 8px ${pr.color}22`;
+                              }}
+                            >
                               <div style={{
+                                fontSize: 10,
+                                fontWeight: 700,
+                                color: pr.color,
+                                marginBottom: 4,
                                 display: "flex",
                                 alignItems: "center",
-                                justifyContent: "center",
-                                height: "100%",
-                                color: theme.red,
-                                fontSize: 11,
-                                fontWeight: 600,
-                                opacity: 0.5
+                                gap: 6
                               }}>
-                                {window.label || "Blocked Time"}
+                                <span>🕐 {alloc.startTime} - {alloc.endTime}</span>
+                                <span style={{
+                                  background: pr.color,
+                                  color: "#fff",
+                                  padding: "1px 6px",
+                                  borderRadius: 4,
+                                  fontSize: 8
+                                }}>
+                                  {alloc.durationMinutes} min
+                                </span>
                               </div>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-
-                  {/* Task Summary List */}
-                  <div style={{ marginTop: 16 }}>
-                    <div style={{
-                      fontSize: 10,
-                      color: theme.textMuted,
-                      fontWeight: 700,
-                      marginBottom: 10,
-                      letterSpacing: "0.05em"
-                    }}>
-                      TASKS SUMMARY
-                    </div>
-                    
-                    {selectedTasks.map(({ task, targetProgress }) => {
-                      const pr = P(task.priority);
-                      const section = sections.find(s => s.id === task.sectionId);
-                      const trackInfo = isTaskOnTrack(task, workWindows);
-
-                      return (
-                        <div key={task.id} style={{
-                          background: theme.bgHover, borderRadius: 8, padding: "10px 12px",
-                          marginBottom: 8, borderLeft: `3px solid ${pr.color}`,
-                          cursor: "pointer", transition: "all 0.15s"
-                        }}
-                          onClick={() => {
-                            if (section) navigate(`/${section.slug || toSlug(section.name)}`);
-                          }}
-                          onMouseEnter={(e) => { e.currentTarget.style.transform = "translateX(2px)"; }}
-                          onMouseLeave={(e) => { e.currentTarget.style.transform = "translateX(0)"; }}
-                        >
-                          <div style={{ fontWeight: 600, fontSize: 11, color: theme.text, marginBottom: 4 }}>
-                            {task.title}
-                          </div>
-                          
-                          <div style={{ display: "flex", alignItems: "center", gap: 4, marginBottom: 6, flexWrap: "wrap" }}>
-                            <span style={{ background: pr.dim, color: pr.color, fontSize: 8, padding: "2px 5px", borderRadius: 3, fontWeight: 700 }}>
-                              {pr.label}
-                            </span>
-                            {section && (
-                              <span style={{ background: theme.blueDim, color: theme.blue, fontSize: 8, padding: "2px 5px", borderRadius: 3, fontWeight: 600 }}>
-                                {section.name}
-                              </span>
-                            )}
-                          </div>
-
-                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                            <span style={{ color: theme.textDim, fontSize: 9 }}>
-                              Today: {targetProgress}%
-                            </span>
-                            <span style={{ color: theme.textDim, fontSize: 9 }}>
-                              Overall: {task.progress || 0}%
-                            </span>
-                          </div>
-                          
-                          {trackInfo.message && (
-                            <div style={{
-                              marginTop: 4, fontSize: 8, fontWeight: 600,
-                              color: trackInfo.onTrack ? theme.green : theme.orange
-                            }}>
-                              {trackInfo.message}
+                              <div style={{
+                                fontSize: 14,
+                                fontWeight: 600,
+                                color: theme.text,
+                                marginBottom: 6
+                              }}>
+                                {alloc.task.title}
+                              </div>
+                              <div style={{
+                                fontSize: 11,
+                                color: theme.textMuted,
+                                display: "flex",
+                                alignItems: "center",
+                                gap: 8
+                              }}>
+                                <span>🎯 Target: {alloc.targetProgress}%</span>
+                                <span>•</span>
+                                <span>📊 Overall: {alloc.task.progress || 0}%</span>
+                              </div>
                             </div>
+                          );
+                        })}
+
+                        {window.blocked && (
+                          <div style={{
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            height: "100%",
+                            color: theme.red,
+                            fontSize: 13,
+                            fontWeight: 600,
+                            opacity: 0.6
+                          }}>
+                            🚫 {window.label || "Blocked Time"}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Task Summary - Right Side */}
+              <div>
+                <div style={{
+                  fontSize: 12,
+                  color: theme.text,
+                  fontWeight: 700,
+                  marginBottom: 16,
+                  letterSpacing: "0.05em"
+                }}>
+                  📋 TASKS SUMMARY ({selectedTasks.length})
+                </div>
+
+                <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                  {selectedTasks.map(({ task, targetProgress }) => {
+                    const pr = P(task.priority);
+                    const section = sections.find(s => s.id === task.sectionId);
+                    const trackInfo = isTaskOnTrack(task, workWindows);
+                    const allocation = taskAllocations.find(a => a.task.id === task.id);
+
+                    return (
+                      <div key={task.id} style={{
+                        background: theme.bgInput, borderRadius: 10, padding: "14px 16px",
+                        borderLeft: `4px solid ${pr.color}`,
+                        cursor: "pointer", transition: "all 0.15s"
+                      }}
+                        onClick={() => {
+                          if (section) navigate(`/${section.slug || toSlug(section.name)}`);
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.transform = "translateX(4px)";
+                          e.currentTarget.style.boxShadow = `0 4px 12px ${pr.color}22`;
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.transform = "translateX(0)";
+                          e.currentTarget.style.boxShadow = "none";
+                        }}
+                      >
+                        <div style={{ fontWeight: 600, fontSize: 13, color: theme.text, marginBottom: 8 }}>
+                          {task.title}
+                        </div>
+
+                        <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 10, flexWrap: "wrap" }}>
+                          <span style={{ background: pr.dim, color: pr.color, fontSize: 9, padding: "3px 8px", borderRadius: 4, fontWeight: 700 }}>
+                            {pr.label}
+                          </span>
+                          {section && (
+                            <span style={{ background: theme.blueDim, color: theme.blue, fontSize: 9, padding: "3px 8px", borderRadius: 4, fontWeight: 600 }}>
+                              📁 {section.name}
+                            </span>
+                          )}
+                          {allocation && (
+                            <span style={{ background: theme.orangeDim, color: theme.orange, fontSize: 9, padding: "3px 8px", borderRadius: 4, fontWeight: 600 }}>
+                              ⏱️ {allocation.durationMinutes} min
+                            </span>
                           )}
                         </div>
-                      );
-                    })}
-                  </div>
-                </>
-              )}
-            </>
-          ) : (
-            <div style={{ textAlign: "center", padding: "60px 20px" }}>
-              <div style={{ fontSize: 48, marginBottom: 16 }}>📅</div>
-              <div style={{ color: theme.textMuted, fontSize: 14, marginBottom: 8 }}>
-                Select a date
-              </div>
-              <div style={{ color: theme.textFaint, fontSize: 12 }}>
-                Click on a day to see scheduled tasks
+
+                        {/* Progress bars */}
+                        <div style={{ marginBottom: 8 }}>
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+                            <span style={{ color: theme.textDim, fontSize: 10, fontWeight: 600 }}>
+                              Today's Target
+                            </span>
+                            <span style={{ color: pr.color, fontSize: 11, fontWeight: 700 }}>
+                              {targetProgress}%
+                            </span>
+                          </div>
+                          <div style={{
+                            background: theme.mode === "dark" ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.1)",
+                            borderRadius: 4, height: 8, overflow: "hidden"
+                          }}>
+                            <div style={{
+                              background: pr.color, height: "100%",
+                              width: `${targetProgress}%`, transition: "width 0.3s ease"
+                            }} />
+                          </div>
+                        </div>
+
+                        <div>
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+                            <span style={{ color: theme.textDim, fontSize: 10, fontWeight: 600 }}>
+                              Overall Progress
+                            </span>
+                            <span style={{ color: theme.text, fontSize: 11, fontWeight: 700 }}>
+                              {task.progress || 0}%
+                            </span>
+                          </div>
+                          <div style={{
+                            background: theme.mode === "dark" ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.1)",
+                            borderRadius: 4, height: 6, overflow: "hidden"
+                          }}>
+                            <div style={{
+                              background: trackInfo.onTrack ? theme.green : theme.orange,
+                              height: "100%", width: `${task.progress || 0}%`,
+                              transition: "width 0.3s ease"
+                            }} />
+                          </div>
+                        </div>
+
+                        {trackInfo.message && (
+                          <div style={{
+                            marginTop: 8, fontSize: 10, fontWeight: 600,
+                            color: trackInfo.onTrack ? theme.green : theme.orange,
+                            display: "flex", alignItems: "center", gap: 4
+                          }}>
+                            <span>{trackInfo.onTrack ? "✓" : "⚠"}</span>
+                            <span>{trackInfo.message}</span>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
             </div>
           )}
         </div>
-      </div>
+      )}
     </div>
   );
 }

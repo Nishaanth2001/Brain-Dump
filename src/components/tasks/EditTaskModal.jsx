@@ -3,6 +3,7 @@ import Modal from "../common/Modal";
 import Field from "../common/Field";
 import { makeFieldStyle } from "../common/styles";
 import { useTheme } from "../../contexts/ThemeContext";
+import { RECURRING_FREQUENCIES } from "../../constants/appConstants";
 
 function EditTaskModal({ open, task, onClose, onSave, onMoveType }) {
   const { theme } = useTheme();
@@ -22,6 +23,7 @@ function EditTaskModal({ open, task, onClose, onSave, onMoveType }) {
         status:       task.status || "Not Started",
         priority:     task.priority     || "HH",
         notes:        task.notes        || "",
+        recurringFrequency: task.recurringFrequency || "daily",
       });
       setTags(task.tags || []);
     }
@@ -85,6 +87,19 @@ function EditTaskModal({ open, task, onClose, onSave, onMoveType }) {
           </select>
         </Field>
       </div>
+
+      {/* Recurring Frequency - Only for Routine Tasks */}
+      {task.taskType === "routine" && (
+        <Field label="Recurring Frequency">
+          <select value={form.recurringFrequency||"daily"} onChange={(e)=>set("recurringFrequency",e.target.value)} style={fs}>
+            {RECURRING_FREQUENCIES.map((freq) => (
+              <option key={freq.key} value={freq.key}>
+                {freq.icon} {freq.label}
+              </option>
+            ))}
+          </select>
+        </Field>
+      )}
 
       <Field label="Notes &amp; Documentation">
         <textarea value={form.notes||""} onChange={(e)=>set("notes",e.target.value)}

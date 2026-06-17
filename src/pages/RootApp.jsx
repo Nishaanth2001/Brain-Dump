@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { Routes, Route, useNavigate, useParams, Navigate } from "react-router-dom";
+import { Routes, Route, useNavigate, useParams, Navigate, useLocation } from "react-router-dom";
 import {
   onAuthStateChanged,
   signInWithPopup,
@@ -445,8 +445,10 @@ function CompletedScreenWrapper({ tasks, sections, syncStatus, handleDelete }) {
 
 function TopBar({ user, syncStatus, onSignOut, onReconnect, onOpenWorkWindows }) {
   const navigate = useNavigate();
+  const location = useLocation();
   const { theme, toggle } = useTheme();
   const isDark = theme.mode === "dark";
+  const isOnCalendar = location.pathname.includes("/calendar");
 
   return (
     <>
@@ -464,7 +466,7 @@ function TopBar({ user, syncStatus, onSignOut, onReconnect, onOpenWorkWindows })
             style={{ fontFamily:"'DM Serif Display',serif", fontSize:18, color:theme.text, cursor:"pointer" }}
           >Flow</div>
           <button
-            onClick={() => navigate("/calendar")}
+            onClick={() => navigate(isOnCalendar ? "/" : "/calendar")}
             style={{
               background: "none", border: "none", color: theme.textMuted,
               fontSize: 12, cursor: "pointer", fontFamily: "'DM Sans',sans-serif",
@@ -474,7 +476,7 @@ function TopBar({ user, syncStatus, onSignOut, onReconnect, onOpenWorkWindows })
             onMouseEnter={(e) => { e.currentTarget.style.color = theme.red; e.currentTarget.style.background = theme.redDim; }}
             onMouseLeave={(e) => { e.currentTarget.style.color = theme.textMuted; e.currentTarget.style.background = "none"; }}
           >
-            📅 Calendar
+            {isOnCalendar ? "📂 Sections" : "📅 Calendar"}
           </button>
         </div>
         <div style={{ display:"flex", alignItems:"center", gap:12 }}>

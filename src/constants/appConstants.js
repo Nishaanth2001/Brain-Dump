@@ -15,3 +15,10 @@ export const MONTHS = [
 ];
 
 export const DOWS = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
+
+export const RECURRING_FREQUENCIES = [
+  { key: "daily", label: "Daily", icon: "📅" },
+  { key: "weekly", label: "Weekly", icon: "📆" },
+  { key: "biweekly", label: "Bi-weekly", icon: "🗓️" },
+  { key: "monthly", label: "Monthly", icon: "🗓️" },
+];
