@@ -261,10 +261,6 @@ function CalendarPage({ tasks, sections, onProgress, workWindows }) {
                 </div>
 
                 {dayWindows.map((window, idx) => {
-                  const heightPerMinute = 1.2; // Increased for more space
-                  const windowDuration = window.endMinutes - window.startMinutes;
-                  const windowHeight = windowDuration * heightPerMinute;
-
                   // Get tasks allocated to this window
                   const windowTasks = taskAllocations.filter(alloc =>
                     alloc.startMinutes >= window.startMinutes &&
@@ -273,8 +269,7 @@ function CalendarPage({ tasks, sections, onProgress, workWindows }) {
 
                   return (
                     <div key={idx} style={{
-                      marginBottom: 16,
-                      position: "relative"
+                      marginBottom: 16
                     }}>
                       {/* Time label */}
                       <div style={{
@@ -288,7 +283,7 @@ function CalendarPage({ tasks, sections, onProgress, workWindows }) {
                       }}>
                         <span>{window.start} - {window.end}</span>
                         <span style={{ color: theme.textDim, fontSize: 10, fontWeight: 500 }}>
-                          ({windowDuration} min)
+                          ({window.endMinutes - window.startMinutes} min)
                         </span>
                         {window.blocked && (
                           <span style={{
@@ -304,23 +299,25 @@ function CalendarPage({ tasks, sections, onProgress, workWindows }) {
                         )}
                       </div>
 
-                      {/* Window block */}
+                      {/* Window block - using flex layout to stack tasks vertically */}
                       <div style={{
                         background: window.blocked
                           ? "repeating-linear-gradient(45deg, rgba(232,69,69,0.05), rgba(232,69,69,0.05) 10px, rgba(232,69,69,0.1) 10px, rgba(232,69,69,0.1) 20px)"
                           : theme.mode === "dark" ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.04)",
                         border: `1px solid ${window.blocked ? theme.redBorder : theme.border}`,
                         borderRadius: 10,
-                        minHeight: Math.max(windowHeight, 60),
-                        position: "relative",
-                        padding: 8
+                        minHeight: 60,
+                        padding: 12,
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: 12
                       }}>
                         {!window.blocked && windowTasks.length === 0 && (
                           <div style={{
                             display: "flex",
                             alignItems: "center",
                             justifyContent: "center",
-                            height: "100%",
+                            minHeight: 48,
                             color: theme.textDim,
                             fontSize: 12,
                             fontStyle: "italic"
@@ -331,23 +328,16 @@ function CalendarPage({ tasks, sections, onProgress, workWindows }) {
 
                         {!window.blocked && windowTasks.map((alloc, taskIdx) => {
                           const pr = P(alloc.task.priority);
-                          const offsetFromWindowStart = alloc.startMinutes - window.startMinutes;
-                          const topPosition = offsetFromWindowStart * heightPerMinute;
-                          const taskHeight = alloc.durationMinutes * heightPerMinute;
 
                           return (
                             <div
                               key={taskIdx}
                               style={{
-                                position: "absolute",
-                                top: topPosition + 8,
-                                left: 8,
-                                right: 8,
-                                minHeight: Math.max(taskHeight - 4, 50),
+                                minHeight: 80,
                                 background: `linear-gradient(135deg, ${pr.color}15, ${pr.color}08)`,
                                 border: `2px solid ${pr.color}`,
                                 borderRadius: 8,
-                                padding: "10px 12px",
+                                padding: "12px 14px",
                                 display: "flex",
                                 flexDirection: "column",
                                 justifyContent: "center",
@@ -361,12 +351,12 @@ function CalendarPage({ tasks, sections, onProgress, workWindows }) {
                               }}
                               onMouseEnter={(e) => {
                                 e.currentTarget.style.background = `linear-gradient(135deg, ${pr.color}25, ${pr.color}15)`;
-                                e.currentTarget.style.transform = "translateY(-2px)";
+                                e.currentTarget.style.transform = "translateX(4px)";
                                 e.currentTarget.style.boxShadow = `0 4px 16px ${pr.color}33`;
                               }}
                               onMouseLeave={(e) => {
                                 e.currentTarget.style.background = `linear-gradient(135deg, ${pr.color}15, ${pr.color}08)`;
-                                e.currentTarget.style.transform = "translateY(0)";
+                                e.currentTarget.style.transform = "translateX(0)";
                                 e.currentTarget.style.boxShadow = `0 2px 8px ${pr.color}22`;
                               }}
                             >
@@ -374,18 +364,19 @@ function CalendarPage({ tasks, sections, onProgress, workWindows }) {
                                 fontSize: 10,
                                 fontWeight: 700,
                                 color: pr.color,
-                                marginBottom: 4,
+                                marginBottom: 6,
                                 display: "flex",
                                 alignItems: "center",
-                                gap: 6
+                                gap: 6,
+                                flexWrap: "wrap"
                               }}>
                                 <span>🕐 {alloc.startTime} - {alloc.endTime}</span>
                                 <span style={{
                                   background: pr.color,
                                   color: "#fff",
-                                  padding: "1px 6px",
+                                  padding: "2px 8px",
                                   borderRadius: 4,
-                                  fontSize: 8
+                                  fontSize: 9
                                 }}>
                                   {alloc.durationMinutes} min
                                 </span>
@@ -394,7 +385,7 @@ function CalendarPage({ tasks, sections, onProgress, workWindows }) {
                                 fontSize: 14,
                                 fontWeight: 600,
                                 color: theme.text,
-                                marginBottom: 6
+                                marginBottom: 8
                               }}>
                                 {alloc.task.title}
                               </div>
@@ -403,7 +394,8 @@ function CalendarPage({ tasks, sections, onProgress, workWindows }) {
                                 color: theme.textMuted,
                                 display: "flex",
                                 alignItems: "center",
-                                gap: 8
+                                gap: 8,
+                                flexWrap: "wrap"
                               }}>
                                 <span>🎯 Target: {alloc.targetProgress}%</span>
                                 <span>•</span>
@@ -418,7 +410,7 @@ function CalendarPage({ tasks, sections, onProgress, workWindows }) {
                             display: "flex",
                             alignItems: "center",
                             justifyContent: "center",
-                            height: "100%",
+                            minHeight: 48,
                             color: theme.red,
                             fontSize: 13,
                             fontWeight: 600,
