@@ -16,16 +16,37 @@ import SectionsScreen  from "../components/sections/SectionsScreen";
 import AddSectionModal from "../components/sections/AddSectionModal";
 import AppScreen       from "../components/tasks/AppScreen";
 import CompletedScreen from "../components/completed/CompletedScreen";
+import CalendarPage    from "./CalendarPage";
+import WorkWindowsModal from "../components/settings/WorkWindowsModal";
 import Toast           from "../components/common/Toast";
 
 import { uid, todayStr, toSlug } from "../utils/helpers";
 import { registerTokenRefresher } from "../utils/driveApi";
+import { DEFAULT_WORK_WINDOWS } from "../utils/scheduleHelpers";
 import { useTheme } from "../contexts/ThemeContext";
 
 const TOKEN_KEY  = "flow_drive_token";
+const WORK_WINDOWS_KEY = "flow_work_windows";
 const saveToken  = (t) => localStorage.setItem(TOKEN_KEY, t);
 const loadToken  = ()  => localStorage.getItem(TOKEN_KEY) || null;
 const clearToken = ()  => localStorage.removeItem(TOKEN_KEY);
+
+const loadWorkWindows = () => {
+  try {
+    const saved = localStorage.getItem(WORK_WINDOWS_KEY);
+    return saved ? JSON.parse(saved) : DEFAULT_WORK_WINDOWS;
+  } catch {
+    return DEFAULT_WORK_WINDOWS;
+  }
+};
+
+const saveWorkWindows = (windows) => {
+  try {
+    localStorage.setItem(WORK_WINDOWS_KEY, JSON.stringify(windows));
+  } catch {
+    console.error("Failed to save work windows");
+  }
+};
 
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -36,6 +57,8 @@ export default function RootApp() {
   const [user,        setUser]        = useState(null);
   const [accessToken, setAccessToken] = useState(loadToken);
   const [authLoading, setAuthLoading] = useState(true);
+  const [workWindows, setWorkWindows] = useState(loadWorkWindows);
+  const [workWindowsOpen, setWorkWindowsOpen] = useState(false);
 
   const { toast, showToast } = useToast();
   const navigate = useNavigate();
@@ -267,9 +290,15 @@ export default function RootApp() {
     persistSections(reordered);
   }, [persistSections]);
 
+  const handleSaveWorkWindows = useCallback((windows) => {
+    setWorkWindows(windows);
+    saveWorkWindows(windows);
+    showToast("Work windows updated successfully!", "success");
+  }, [showToast]);
+
   // ── Shared props bundle passed into route components ──────────────────────
   const sharedProps = {
-    tasks, sections, user, syncStatus,
+    tasks, sections, user, syncStatus, workWindows,
     handleCycle, handleDelete, handleSave, handleMoveType, handleProgress,
     handleAddSection, handleDeleteSection, handleRenameSection, handleReorderSections,
     showToast,
@@ -298,10 +327,17 @@ export default function RootApp() {
 
   return (
     <div style={{ minHeight:"100vh", background:theme.bg, color:theme.text, transition:"background 0.3s ease, color 0.3s ease" }}>
-      <TopBar user={user} syncStatus={syncStatus} onSignOut={handleSignOut} onReconnect={handleReconnect} />
+      <TopBar 
+        user={user} 
+        syncStatus={syncStatus} 
+        onSignOut={handleSignOut} 
+        onReconnect={handleReconnect}
+        onOpenWorkWindows={() => setWorkWindowsOpen(true)}
+      />
 
       <Routes>
         <Route index element={<SectionsScreenWrapper {...sharedProps} />} />
+        <Route path="calendar" element={<CalendarPage {...sharedProps} />} />
         {/* /completed must be explicit before /:sectionSlug — otherwise React Router
             treats "completed" as a section slug and redirects home when no match is found */}
         <Route path="completed" element={<CompletedScreenWrapper {...sharedProps} />} />
@@ -309,6 +345,13 @@ export default function RootApp() {
         <Route path=":sectionSlug/completed" element={<CompletedScreenWrapper {...sharedProps} />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
+
+      <WorkWindowsModal
+        open={workWindowsOpen}
+        onClose={() => setWorkWindowsOpen(false)}
+        workWindows={workWindows}
+        onSave={handleSaveWorkWindows}
+      />
 
       <Toast message={toast.msg} type={toast.type} visible={toast.visible} />
     </div>
@@ -345,7 +388,7 @@ function SectionsScreenWrapper({ tasks, sections, user, handleAddSection, handle
   );
 }
 
-function AppScreenWrapper({ tasks, sections, syncStatus, handleCycle, handleDelete, handleSave, handleMoveType, handleProgress }) {
+function AppScreenWrapper({ tasks, sections, syncStatus, workWindows, handleCycle, handleDelete, handleSave, handleMoveType, handleProgress }) {
   const { sectionSlug } = useParams();
   const navigate        = useNavigate();
 
@@ -363,6 +406,7 @@ function AppScreenWrapper({ tasks, sections, syncStatus, handleCycle, handleDele
     <AppScreen
       section={section}
       tasks={tasks}
+      workWindows={workWindows}
       onBack={() => navigate("/")}
       onCycle={handleCycle}
       onDelete={handleDelete}
@@ -399,7 +443,7 @@ function CompletedScreenWrapper({ tasks, sections, syncStatus, handleDelete }) {
 // Shared UI pieces
 // ─────────────────────────────────────────────────────────────────────────────
 
-function TopBar({ user, syncStatus, onSignOut, onReconnect }) {
+function TopBar({ user, syncStatus, onSignOut, onReconnect, onOpenWorkWindows }) {
   const navigate = useNavigate();
   const { theme, toggle } = useTheme();
   const isDark = theme.mode === "dark";
@@ -414,14 +458,50 @@ function TopBar({ user, syncStatus, onSignOut, onReconnect }) {
         background:theme.bgTopBar, backdropFilter:"blur(12px)",
         transition:"background 0.3s ease, border-color 0.3s ease",
       }}>
-        <div
-          onClick={() => navigate("/")}
-          style={{ fontFamily:"'DM Serif Display',serif", fontSize:18, color:theme.text, cursor:"pointer" }}
-        >Flow</div>
+        <div style={{ display:"flex", alignItems:"center", gap:16 }}>
+          <div
+            onClick={() => navigate("/")}
+            style={{ fontFamily:"'DM Serif Display',serif", fontSize:18, color:theme.text, cursor:"pointer" }}
+          >Flow</div>
+          <button
+            onClick={() => navigate("/calendar")}
+            style={{
+              background: "none", border: "none", color: theme.textMuted,
+              fontSize: 12, cursor: "pointer", fontFamily: "'DM Sans',sans-serif",
+              fontWeight: 600, transition: "color 0.15s", padding: "4px 8px",
+              borderRadius: 6
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.color = theme.red; e.currentTarget.style.background = theme.redDim; }}
+            onMouseLeave={(e) => { e.currentTarget.style.color = theme.textMuted; e.currentTarget.style.background = "none"; }}
+          >
+            📅 Calendar
+          </button>
+        </div>
         <div style={{ display:"flex", alignItems:"center", gap:12 }}>
           {syncStatus === "saving"  && <span style={{ color:theme.orange, fontSize:11 }}>↑ Saving…</span>}
           {syncStatus === "loading" && <span style={{ color:theme.blue,   fontSize:11 }}>↓ Loading…</span>}
           <span style={{ color:theme.textMuted, fontSize:12 }}>{user.displayName || user.email}</span>
+
+          {/* Work Windows Settings */}
+          <button
+            onClick={onOpenWorkWindows}
+            title="Configure work hours"
+            style={{
+              background: theme.bgInput,
+              border: `1px solid ${theme.border}`,
+              borderRadius: 8,
+              padding: "5px 10px",
+              cursor: "pointer",
+              fontSize: 15,
+              lineHeight: 1,
+              transition: "all 0.2s ease",
+              display: "flex", alignItems: "center", justifyContent: "center",
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.borderColor = theme.orange; e.currentTarget.style.background = theme.orangeDim; }}
+            onMouseLeave={(e) => { e.currentTarget.style.borderColor = theme.border; e.currentTarget.style.background = theme.bgInput; }}
+          >
+            ⏰
+          </button>
 
           {/* Theme toggle */}
           <button

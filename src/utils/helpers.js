@@ -5,6 +5,20 @@ export const todayStr = () => new Date().toISOString().split("T")[0];
 export const P        = (key) => PRIORITIES.find((p) => p.key === key) || PRIORITIES[0];
 export const isDone   = (t) => t.status === "Done" || t.status === "Done Late";
 
+// Format date for display
+export const formatDate = (dateStr) => {
+  if (!dateStr) return "";
+  const d = new Date(dateStr + "T00:00:00");
+  return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+};
+
+// Calculate days between two dates
+export const daysBetween = (startDate, endDate) => {
+  const start = new Date(startDate + "T00:00:00");
+  const end = new Date(endDate + "T00:00:00");
+  return Math.ceil((end - start) / (1000 * 60 * 60 * 24));
+};
+
 // Button label = the NEXT action the user can take
 export function getDisplayStatus(t) {
   const today = todayStr();

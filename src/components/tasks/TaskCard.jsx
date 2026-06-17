@@ -1,7 +1,8 @@
 import { P, getDisplayStatus, getStatusBadge, todayStr } from "../../utils/helpers";
+import { isTaskOnTrack, distributeTaskAcrossDays } from "../../utils/scheduleHelpers";
 import { useTheme } from "../../contexts/ThemeContext";
 
-function TaskCard({ task, onCycle, onDelete, onEdit, onProgress }) {
+function TaskCard({ task, onCycle, onDelete, onEdit, onProgress, workWindows }) {
   const { theme } = useTheme();
   const pr      = P(task.priority);
   const ds      = getDisplayStatus(task);
@@ -10,6 +11,12 @@ function TaskCard({ task, onCycle, onDelete, onEdit, onProgress }) {
   const isIP    = task.status === "In Progress";
   const pct     = task.progress ?? 0;
   const trackBg = theme.mode === "dark" ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.10)";
+
+  // Get tracking info and today's target
+  const trackInfo = isTaskOnTrack(task, workWindows);
+  const schedule = distributeTaskAcrossDays(task, workWindows);
+  const todaySchedule = schedule.find(s => s.date === today);
+  const todayTarget = todaySchedule ? todaySchedule.targetProgress : 0;
 
   const borderColor =
     isIP && task.deadlineDate && task.deadlineDate < today
@@ -78,6 +85,29 @@ function TaskCard({ task, onCycle, onDelete, onEdit, onProgress }) {
                   "--prog-glow":   pr.color + "55",
                 }}
               />
+            </div>
+          )}
+
+          {/* Today's Target Indicator (shown only for In Progress tasks with schedule) */}
+          {isIP && todayTarget > 0 && (
+            <div style={{ marginTop: 10, paddingTop: 10, borderTop: `1px solid ${theme.border}` }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+                <span style={{ color: theme.textDim, fontSize: 9, fontWeight: 700, letterSpacing: "0.05em" }}>
+                  📅 TODAY'S TARGET
+                </span>
+                <span style={{ color: trackInfo.onTrack ? theme.green : theme.orange, fontSize: 10, fontWeight: 700 }}>
+                  {todayTarget}%
+                </span>
+              </div>
+              {trackInfo.message && (
+                <div style={{ 
+                  fontSize: 9, fontWeight: 600,
+                  color: trackInfo.onTrack ? theme.green : theme.orange,
+                  marginTop: 2
+                }}>
+                  {trackInfo.message}
+                </div>
+              )}
             </div>
           )}
 
