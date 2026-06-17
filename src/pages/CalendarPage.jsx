@@ -2,7 +2,7 @@ import { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { MONTHS, DOWS } from "../constants/appConstants";
 import { P, todayStr, isDone, toSlug } from "../utils/helpers";
-import { getTasksSchedule, isTaskOnTrack, distributeTaskAcrossDays } from "../utils/scheduleHelpers";
+import { getTasksSchedule, isTaskOnTrack, distributeTaskAcrossDays, getWorkWindowsForDate, allocateTasksToTimeSlots } from "../utils/scheduleHelpers";
 import { useTheme } from "../contexts/ThemeContext";
 
 function CalendarPage({ tasks, sections, onProgress, workWindows }) {
@@ -38,6 +38,17 @@ function CalendarPage({ tasks, sections, onProgress, workWindows }) {
 
   // Get tasks for selected date
   const selectedTasks = selectedDate ? (schedule[selectedDate] || []) : [];
+  
+  // Get work windows and task allocations for selected date
+  const dayWindows = useMemo(() => 
+    selectedDate ? getWorkWindowsForDate(selectedDate, workWindows) : [],
+    [selectedDate, workWindows]
+  );
+  
+  const taskAllocations = useMemo(() => 
+    selectedDate ? allocateTasksToTimeSlots(selectedTasks, selectedDate, workWindows) : [],
+    [selectedDate, selectedTasks, workWindows]
+  );
 
   // Calculate daily workload (total percentage to complete)
   const dailyWorkload = useMemo(() => {
@@ -184,7 +195,7 @@ function CalendarPage({ tasks, sections, onProgress, workWindows }) {
           </div>
         </div>
 
-        {/* Selected Date Details */}
+        {/* Selected Date Details - Timeline View */}
         <div style={{
           background: theme.bgCard, border: `1px solid ${theme.border}`,
           borderRadius: 16, padding: 20, position: "sticky", top: 80,
@@ -220,91 +231,230 @@ function CalendarPage({ tasks, sections, onProgress, workWindows }) {
                     </span>
                   </div>
 
-                  {selectedTasks.map(({ task, targetProgress }) => {
-                    const pr = P(task.priority);
-                    const section = sections.find(s => s.id === task.sectionId);
-                    const trackInfo = isTaskOnTrack(task, workWindows);
+                  {/* Timeline View */}
+                  <div style={{ 
+                    background: theme.bgInput, 
+                    borderRadius: 10, 
+                    padding: "12px 8px",
+                    position: "relative"
+                  }}>
+                    <div style={{ 
+                      fontSize: 10, 
+                      color: theme.textMuted, 
+                      fontWeight: 700, 
+                      marginBottom: 10,
+                      letterSpacing: "0.05em"
+                    }}>
+                      DAILY TIMELINE
+                    </div>
+                    
+                    {dayWindows.map((window, idx) => {
+                      const heightPerMinute = 0.5; // pixels per minute
+                      const windowHeight = (window.endMinutes - window.startMinutes) * heightPerMinute;
+                      
+                      // Get tasks allocated to this window
+                      const windowTasks = taskAllocations.filter(alloc => 
+                        alloc.startMinutes >= window.startMinutes && 
+                        alloc.startMinutes < window.endMinutes
+                      );
+                      
+                      return (
+                        <div key={idx} style={{ 
+                          marginBottom: 4,
+                          position: "relative"
+                        }}>
+                          {/* Time label */}
+                          <div style={{
+                            fontSize: 9,
+                            color: theme.textDim,
+                            fontWeight: 600,
+                            marginBottom: 2,
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 6
+                          }}>
+                            <span>{window.start} - {window.end}</span>
+                            {window.blocked && (
+                              <span style={{
+                                background: theme.redDim,
+                                color: theme.red,
+                                padding: "1px 6px",
+                                borderRadius: 3,
+                                fontSize: 8,
+                                fontWeight: 700
+                              }}>
+                                {window.label || "BLOCKED"}
+                              </span>
+                            )}
+                          </div>
+                          
+                          {/* Window block */}
+                          <div style={{
+                            background: window.blocked 
+                              ? "repeating-linear-gradient(45deg, rgba(232,69,69,0.05), rgba(232,69,69,0.05) 10px, rgba(232,69,69,0.1) 10px, rgba(232,69,69,0.1) 20px)"
+                              : theme.mode === "dark" ? "rgba(255,255,255,0.03)" : "rgba(0,0,0,0.03)",
+                            border: `1px solid ${window.blocked ? theme.redBorder : theme.border}`,
+                            borderRadius: 6,
+                            minHeight: Math.max(windowHeight, 30),
+                            position: "relative",
+                            overflow: "hidden"
+                          }}>
+                            {!window.blocked && windowTasks.map((alloc, taskIdx) => {
+                              const pr = P(alloc.task.priority);
+                              const offsetFromWindowStart = alloc.startMinutes - window.startMinutes;
+                              const topPosition = offsetFromWindowStart * heightPerMinute;
+                              const taskHeight = alloc.durationMinutes * heightPerMinute;
+                              
+                              return (
+                                <div
+                                  key={taskIdx}
+                                  style={{
+                                    position: "absolute",
+                                    top: topPosition,
+                                    left: 4,
+                                    right: 4,
+                                    height: Math.max(taskHeight, 24),
+                                    background: `linear-gradient(135deg, ${pr.color}22, ${pr.color}11)`,
+                                    border: `1px solid ${pr.color}66`,
+                                    borderLeft: `3px solid ${pr.color}`,
+                                    borderRadius: 4,
+                                    padding: "4px 6px",
+                                    display: "flex",
+                                    flexDirection: "column",
+                                    justifyContent: "center",
+                                    cursor: "pointer",
+                                    transition: "all 0.15s"
+                                  }}
+                                  onClick={() => {
+                                    const section = sections.find(s => s.id === alloc.task.sectionId);
+                                    if (section) navigate(`/${section.slug || toSlug(section.name)}`);
+                                  }}
+                                  onMouseEnter={(e) => {
+                                    e.currentTarget.style.background = `linear-gradient(135deg, ${pr.color}33, ${pr.color}22)`;
+                                    e.currentTarget.style.transform = "translateX(2px)";
+                                  }}
+                                  onMouseLeave={(e) => {
+                                    e.currentTarget.style.background = `linear-gradient(135deg, ${pr.color}22, ${pr.color}11)`;
+                                    e.currentTarget.style.transform = "translateX(0)";
+                                  }}
+                                >
+                                  <div style={{
+                                    fontSize: 9,
+                                    fontWeight: 700,
+                                    color: pr.color,
+                                    marginBottom: 2,
+                                    whiteSpace: "nowrap",
+                                    overflow: "hidden",
+                                    textOverflow: "ellipsis"
+                                  }}>
+                                    {alloc.startTime} - {alloc.endTime}
+                                  </div>
+                                  <div style={{
+                                    fontSize: 10,
+                                    fontWeight: 600,
+                                    color: theme.text,
+                                    whiteSpace: "nowrap",
+                                    overflow: "hidden",
+                                    textOverflow: "ellipsis"
+                                  }}>
+                                    {alloc.task.title}
+                                  </div>
+                                  <div style={{
+                                    fontSize: 8,
+                                    color: theme.textMuted,
+                                    marginTop: 2
+                                  }}>
+                                    {alloc.targetProgress}% target • {alloc.durationMinutes} min
+                                  </div>
+                                </div>
+                              );
+                            })}
+                            
+                            {window.blocked && (
+                              <div style={{
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                height: "100%",
+                                color: theme.red,
+                                fontSize: 11,
+                                fontWeight: 600,
+                                opacity: 0.5
+                              }}>
+                                {window.label || "Blocked Time"}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
 
-                    return (
-                      <div key={task.id} style={{
-                        background: theme.bgHover, borderRadius: 10, padding: "12px 14px",
-                        marginBottom: 10, borderLeft: `3px solid ${pr.color}`,
-                        cursor: "pointer", transition: "all 0.15s"
-                      }}
-                        onClick={() => {
-                          if (section) navigate(`/${section.slug || toSlug(section.name)}`);
+                  {/* Task Summary List */}
+                  <div style={{ marginTop: 16 }}>
+                    <div style={{
+                      fontSize: 10,
+                      color: theme.textMuted,
+                      fontWeight: 700,
+                      marginBottom: 10,
+                      letterSpacing: "0.05em"
+                    }}>
+                      TASKS SUMMARY
+                    </div>
+                    
+                    {selectedTasks.map(({ task, targetProgress }) => {
+                      const pr = P(task.priority);
+                      const section = sections.find(s => s.id === task.sectionId);
+                      const trackInfo = isTaskOnTrack(task, workWindows);
+
+                      return (
+                        <div key={task.id} style={{
+                          background: theme.bgHover, borderRadius: 8, padding: "10px 12px",
+                          marginBottom: 8, borderLeft: `3px solid ${pr.color}`,
+                          cursor: "pointer", transition: "all 0.15s"
                         }}
-                        onMouseEnter={(e) => { e.currentTarget.style.transform = "translateX(2px)"; }}
-                        onMouseLeave={(e) => { e.currentTarget.style.transform = "translateX(0)"; }}
-                      >
-                        <div style={{ fontWeight: 600, fontSize: 13, color: theme.text, marginBottom: 6 }}>
-                          {task.title}
-                        </div>
-                        
-                        <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6, flexWrap: "wrap" }}>
-                          <span style={{ background: pr.dim, color: pr.color, fontSize: 9, padding: "2px 6px", borderRadius: 4, fontWeight: 700 }}>
-                            {pr.label}
-                          </span>
-                          {section && (
-                            <span style={{ background: theme.blueDim, color: theme.blue, fontSize: 9, padding: "2px 6px", borderRadius: 4, fontWeight: 600 }}>
-                              {section.name}
+                          onClick={() => {
+                            if (section) navigate(`/${section.slug || toSlug(section.name)}`);
+                          }}
+                          onMouseEnter={(e) => { e.currentTarget.style.transform = "translateX(2px)"; }}
+                          onMouseLeave={(e) => { e.currentTarget.style.transform = "translateX(0)"; }}
+                        >
+                          <div style={{ fontWeight: 600, fontSize: 11, color: theme.text, marginBottom: 4 }}>
+                            {task.title}
+                          </div>
+                          
+                          <div style={{ display: "flex", alignItems: "center", gap: 4, marginBottom: 6, flexWrap: "wrap" }}>
+                            <span style={{ background: pr.dim, color: pr.color, fontSize: 8, padding: "2px 5px", borderRadius: 3, fontWeight: 700 }}>
+                              {pr.label}
                             </span>
-                          )}
-                        </div>
+                            {section && (
+                              <span style={{ background: theme.blueDim, color: theme.blue, fontSize: 8, padding: "2px 5px", borderRadius: 3, fontWeight: 600 }}>
+                                {section.name}
+                              </span>
+                            )}
+                          </div>
 
-                        {/* Progress bar */}
-                        <div style={{ marginTop: 8 }}>
-                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
-                            <span style={{ color: theme.textDim, fontSize: 9, fontWeight: 700, letterSpacing: "0.05em" }}>
-                              TODAY'S TARGET
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                            <span style={{ color: theme.textDim, fontSize: 9 }}>
+                              Today: {targetProgress}%
                             </span>
-                            <span style={{ color: pr.color, fontSize: 10, fontWeight: 700 }}>
-                              {targetProgress}%
+                            <span style={{ color: theme.textDim, fontSize: 9 }}>
+                              Overall: {task.progress || 0}%
                             </span>
                           </div>
-                          <div style={{
-                            background: theme.mode === "dark" ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.08)",
-                            borderRadius: 4, height: 6, overflow: "hidden"
-                          }}>
-                            <div style={{
-                              background: pr.color, height: "100%",
-                              width: `${targetProgress}%`, transition: "width 0.3s ease"
-                            }} />
-                          </div>
-                        </div>
-
-                        {/* Overall progress */}
-                        <div style={{ marginTop: 8, paddingTop: 8, borderTop: `1px solid ${theme.border}` }}>
-                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
-                            <span style={{ color: theme.textDim, fontSize: 9, fontWeight: 700, letterSpacing: "0.05em" }}>
-                              OVERALL
-                            </span>
-                            <span style={{ color: theme.text, fontSize: 10, fontWeight: 700 }}>
-                              {task.progress || 0}%
-                            </span>
-                          </div>
-                          <div style={{
-                            background: theme.mode === "dark" ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.08)",
-                            borderRadius: 4, height: 4, overflow: "hidden"
-                          }}>
-                            <div style={{
-                              background: trackInfo.onTrack ? theme.green : theme.orange,
-                              height: "100%", width: `${task.progress || 0}%`,
-                              transition: "width 0.3s ease"
-                            }} />
-                          </div>
+                          
                           {trackInfo.message && (
                             <div style={{
-                              marginTop: 4, fontSize: 9, fontWeight: 600,
+                              marginTop: 4, fontSize: 8, fontWeight: 600,
                               color: trackInfo.onTrack ? theme.green : theme.orange
                             }}>
                               {trackInfo.message}
                             </div>
                           )}
                         </div>
-                      </div>
-                    );
-                  })}
+                      );
+                    })}
+                  </div>
                 </>
               )}
             </>

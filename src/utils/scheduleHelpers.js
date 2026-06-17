@@ -196,3 +196,96 @@ export function getTodaysSummary(tasks, workWindows = DEFAULT_WORK_WINDOWS) {
     tasks: todayTasks,
   };
 }
+
+/**
+ * Get work windows for a specific date
+ */
+export function getWorkWindowsForDate(dateStr, workWindows = DEFAULT_WORK_WINDOWS) {
+  const date = new Date(dateStr + "T00:00:00");
+  const dayOfWeek = date.getDay();
+  const dayName = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"][dayOfWeek];
+  
+  return workWindows
+    .filter(w => w.day === dayName)
+    .map(w => ({
+      ...w,
+      startMinutes: timeToMinutes(w.start),
+      endMinutes: timeToMinutes(w.end),
+    }))
+    .sort((a, b) => a.startMinutes - b.startMinutes);
+}
+
+/**
+ * Convert time string to minutes since midnight
+ */
+function timeToMinutes(timeStr) {
+  const [hours, minutes] = timeStr.split(":").map(Number);
+  return hours * 60 + minutes;
+}
+
+/**
+ * Convert minutes since midnight to time string
+ */
+function minutesToTime(minutes) {
+  const hours = Math.floor(minutes / 60);
+  const mins = minutes % 60;
+  return `${String(hours).padStart(2, "0")}:${String(mins).padStart(2, "0")}`;
+}
+
+/**
+ * Allocate tasks to specific time slots within the work windows for a given day
+ */
+export function allocateTasksToTimeSlots(tasksForDay, dateStr, workWindows = DEFAULT_WORK_WINDOWS) {
+  const dayWindows = getWorkWindowsForDate(dateStr, workWindows);
+  const availableWindows = dayWindows.filter(w => !w.blocked);
+  
+  if (availableWindows.length === 0) return [];
+  
+  // Calculate total available minutes
+  const totalAvailableMinutes = availableWindows.reduce((sum, w) => 
+    sum + (w.endMinutes - w.startMinutes), 0
+  );
+  
+  // Allocate each task to time slots proportionally
+  const allocations = [];
+  let currentWindowIndex = 0;
+  let currentMinuteInWindow = availableWindows[0]?.startMinutes || 0;
+  
+  tasksForDay.forEach(({ task, targetProgress }) => {
+    // Calculate how many minutes this task should take
+    const taskMinutes = Math.round((targetProgress / 100) * totalAvailableMinutes);
+    let remainingMinutes = taskMinutes;
+    
+    while (remainingMinutes > 0 && currentWindowIndex < availableWindows.length) {
+      const window = availableWindows[currentWindowIndex];
+      const windowEndMinute = window.endMinutes;
+      const availableInWindow = windowEndMinute - currentMinuteInWindow;
+      
+      if (availableInWindow <= 0) {
+        // Move to next window
+        currentWindowIndex++;
+        if (currentWindowIndex < availableWindows.length) {
+          currentMinuteInWindow = availableWindows[currentWindowIndex].startMinutes;
+        }
+        continue;
+      }
+      
+      const minutesToUse = Math.min(remainingMinutes, availableInWindow);
+      
+      allocations.push({
+        task,
+        targetProgress,
+        startTime: minutesToTime(currentMinuteInWindow),
+        endTime: minutesToTime(currentMinuteInWindow + minutesToUse),
+        startMinutes: currentMinuteInWindow,
+        endMinutes: currentMinuteInWindow + minutesToUse,
+        durationMinutes: minutesToUse,
+      });
+      
+      currentMinuteInWindow += minutesToUse;
+      remainingMinutes -= minutesToUse;
+    }
+  });
+  
+  return allocations;
+}
