@@ -11,6 +11,13 @@ function CalendarPage({ tasks, sections, onProgress, workWindows }) {
   const [year, setYear] = useState(new Date().getFullYear());
   const [month, setMonth] = useState(new Date().getMonth());
   const [selectedDate, setSelectedDate] = useState(null);
+  const [viewMode, setViewMode] = useState("week"); // 'month' or 'week'
+  const [weekStart, setWeekStart] = useState(() => {
+    const now = new Date();
+    const day = now.getDay();
+    const diff = now.getDate() - day + (day === 0 ? -6 : 1); // Monday
+    return new Date(now.setDate(diff));
+  });
   const today = todayStr();
 
   // Get schedule for all non-routine tasks (routine tasks don't need time-based scheduling)
@@ -65,54 +72,317 @@ function CalendarPage({ tasks, sections, onProgress, workWindows }) {
     borderRadius: 6, transition: "all 0.15s"
   };
 
+  // Week navigation
+  const getWeekDays = () => {
+    const days = [];
+    for (let i = 0; i < 7; i++) {
+      const day = new Date(weekStart);
+      day.setDate(weekStart.getDate() + i);
+      days.push(day);
+    }
+    return days;
+  };
+
+  const prevWeek = () => {
+    const newStart = new Date(weekStart);
+    newStart.setDate(weekStart.getDate() - 7);
+    setWeekStart(newStart);
+  };
+
+  const nextWeek = () => {
+    const newStart = new Date(weekStart);
+    newStart.setDate(weekStart.getDate() + 7);
+    setWeekStart(newStart);
+  };
+
+  const goToToday = () => {
+    const now = new Date();
+    const day = now.getDay();
+    const diff = now.getDate() - day + (day === 0 ? -6 : 1);
+    setWeekStart(new Date(now.setDate(diff)));
+    setMonth(new Date().getMonth());
+    setYear(new Date().getFullYear());
+  };
+
+  const weekDays = getWeekDays();
+  const weekRange = `${MONTHS[weekDays[0].getMonth()]} ${weekDays[0].getDate()}–${weekDays[6].getDate()}, ${weekDays[0].getFullYear()}`;
+
+  // Generate time slots (24 hours)
+  const timeSlots = Array.from({ length: 24 }, (_, i) => {
+    const hour = i;
+    const label = hour === 0 ? "12 AM" : hour < 12 ? `${hour} AM` : hour === 12 ? "12 PM" : `${hour - 12} PM`;
+    return { hour, label, startMinutes: hour * 60, endMinutes: (hour + 1) * 60 };
+  });
+
   return (
     <div style={{ maxWidth: 1600, margin: "0 auto", padding: "24px 20px" }}>
       {/* Header */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24, flexWrap: "wrap", gap: 12 }}>
-        <div>
-          <div style={{ fontFamily: "'DM Serif Display',serif", fontSize: 28, color: theme.text, marginBottom: 4 }}>
-            📅 Smart Calendar
-          </div>
-          <div style={{ color: theme.textMuted, fontSize: 13 }}>
-            Your tasks are automatically distributed across available days
-          </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+          <button
+            onClick={goToToday}
+            style={{
+              background: theme.bgInput, border: `1px solid ${theme.border}`,
+              borderRadius: 8, padding: "8px 16px", color: theme.text,
+              fontSize: 13, cursor: "pointer", fontFamily: "'DM Sans',sans-serif",
+              fontWeight: 600, transition: "all 0.15s"
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.borderColor = theme.red; }}
+            onMouseLeave={(e) => { e.currentTarget.style.borderColor = theme.border; }}
+          >
+            Today
+          </button>
+          
+          {viewMode === "week" && (
+            <>
+              <button onClick={prevWeek} style={navBtn}
+                onMouseEnter={(e) => { e.currentTarget.style.color = theme.text; e.currentTarget.style.background = theme.bgHover; }}
+                onMouseLeave={(e) => { e.currentTarget.style.color = theme.textMuted; e.currentTarget.style.background = "none"; }}
+              >‹</button>
+              <button onClick={nextWeek} style={navBtn}
+                onMouseEnter={(e) => { e.currentTarget.style.color = theme.text; e.currentTarget.style.background = theme.bgHover; }}
+                onMouseLeave={(e) => { e.currentTarget.style.color = theme.textMuted; e.currentTarget.style.background = "none"; }}
+              >›</button>
+              <div style={{ fontFamily: "'DM Serif Display',serif", fontSize: 20, color: theme.text }}>
+                {weekRange}
+              </div>
+            </>
+          )}
+          
+          {viewMode === "month" && (
+            <>
+              <button onClick={prev} style={navBtn}
+                onMouseEnter={(e) => { e.currentTarget.style.color = theme.text; e.currentTarget.style.background = theme.bgHover; }}
+                onMouseLeave={(e) => { e.currentTarget.style.color = theme.textMuted; e.currentTarget.style.background = "none"; }}
+              >‹</button>
+              <button onClick={next} style={navBtn}
+                onMouseEnter={(e) => { e.currentTarget.style.color = theme.text; e.currentTarget.style.background = theme.bgHover; }}
+                onMouseLeave={(e) => { e.currentTarget.style.color = theme.textMuted; e.currentTarget.style.background = "none"; }}
+              >›</button>
+              <div style={{ fontFamily: "'DM Serif Display',serif", fontSize: 20, color: theme.text }}>
+                {MONTHS[month]} {year}
+              </div>
+            </>
+          )}
         </div>
-        <button
-          onClick={() => navigate("/")}
-          style={{
-            background: theme.bgInput, border: `1px solid ${theme.border}`,
-            borderRadius: 10, padding: "10px 20px", color: theme.textMuted,
-            fontSize: 13, cursor: "pointer", fontFamily: "'DM Sans',sans-serif",
-            fontWeight: 600, transition: "all 0.15s"
-          }}
-          onMouseEnter={(e) => { e.currentTarget.style.color = theme.text; e.currentTarget.style.borderColor = theme.red; }}
-          onMouseLeave={(e) => { e.currentTarget.style.color = theme.textMuted; e.currentTarget.style.borderColor = theme.border; }}
-        >
-          ← Back to Sections
-        </button>
+        
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          {/* View Mode Toggle */}
+          <div style={{ display: "flex", gap: 4, background: theme.bgInput, borderRadius: 8, padding: 4 }}>
+            <button
+              onClick={() => setViewMode("week")}
+              style={{
+                background: viewMode === "week" ? theme.bgCard : "transparent",
+                border: "none",
+                borderRadius: 6,
+                padding: "6px 14px",
+                color: viewMode === "week" ? theme.text : theme.textMuted,
+                fontSize: 12,
+                cursor: "pointer",
+                fontFamily: "'DM Sans',sans-serif",
+                fontWeight: 600,
+                transition: "all 0.15s"
+              }}
+            >
+              Week
+            </button>
+            <button
+              onClick={() => setViewMode("month")}
+              style={{
+                background: viewMode === "month" ? theme.bgCard : "transparent",
+                border: "none",
+                borderRadius: 6,
+                padding: "6px 14px",
+                color: viewMode === "month" ? theme.text : theme.textMuted,
+                fontSize: 12,
+                cursor: "pointer",
+                fontFamily: "'DM Sans',sans-serif",
+                fontWeight: 600,
+                transition: "all 0.15s"
+              }}
+            >
+              Month
+            </button>
+          </div>
+          
+          <button
+            onClick={() => navigate("/")}
+            style={{
+              background: theme.bgInput, border: `1px solid ${theme.border}`,
+              borderRadius: 10, padding: "8px 16px", color: theme.textMuted,
+              fontSize: 13, cursor: "pointer", fontFamily: "'DM Sans',sans-serif",
+              fontWeight: 600, transition: "all 0.15s"
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.color = theme.text; e.currentTarget.style.borderColor = theme.red; }}
+            onMouseLeave={(e) => { e.currentTarget.style.color = theme.textMuted; e.currentTarget.style.borderColor = theme.border; }}
+          >
+            ← Back
+          </button>
+        </div>
       </div>
 
-      {/* Calendar Grid - Full Width */}
-      <div style={{ marginBottom: 24 }}>
-        {/* Calendar Grid */}
+      {/* Week View */}
+      {viewMode === "week" && (
         <div style={{
           background: theme.bgCard, border: `1px solid ${theme.border}`,
-          borderRadius: 16, padding: 24, transition: "background 0.3s ease"
+          borderRadius: 16, overflow: "hidden", transition: "background 0.3s ease"
         }}>
-          {/* Month Navigation */}
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
-            <button onClick={prev} style={navBtn}
-              onMouseEnter={(e) => { e.currentTarget.style.color = theme.text; e.currentTarget.style.background = theme.bgHover; }}
-              onMouseLeave={(e) => { e.currentTarget.style.color = theme.textMuted; e.currentTarget.style.background = "none"; }}
-            >‹</button>
-            <div style={{ fontFamily: "'DM Serif Display',serif", fontSize: 20, color: theme.text }}>
-              {MONTHS[month]} {year}
-            </div>
-            <button onClick={next} style={navBtn}
-              onMouseEnter={(e) => { e.currentTarget.style.color = theme.text; e.currentTarget.style.background = theme.bgHover; }}
-              onMouseLeave={(e) => { e.currentTarget.style.color = theme.textMuted; e.currentTarget.style.background = "none"; }}
-            >›</button>
+          {/* Week header with days */}
+          <div style={{ display: "grid", gridTemplateColumns: "60px repeat(7, 1fr)", borderBottom: `1px solid ${theme.border}` }}>
+            <div style={{ padding: "12px 8px", fontSize: 11, color: theme.textMuted, fontWeight: 600 }}></div>
+            {weekDays.map((day, idx) => {
+              const dateStr = day.toISOString().split("T")[0];
+              const isToday = dateStr === today;
+              const dayTasks = schedule[dateStr] || [];
+              
+              return (
+                <div key={idx} style={{
+                  padding: "12px 8px",
+                  textAlign: "center",
+                  borderLeft: `1px solid ${theme.border}`,
+                  background: isToday ? theme.redDim : "transparent"
+                }}>
+                  <div style={{
+                    fontSize: 10,
+                    color: theme.textMuted,
+                    fontWeight: 600,
+                    marginBottom: 4,
+                    textTransform: "uppercase"
+                  }}>
+                    {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"][idx]}
+                  </div>
+                  <div style={{
+                    fontSize: 18,
+                    color: isToday ? theme.red : theme.text,
+                    fontWeight: isToday ? 700 : 600
+                  }}>
+                    {day.getDate()}
+                  </div>
+                  {dayTasks.length > 0 && (
+                    <div style={{
+                      fontSize: 9,
+                      color: theme.textMuted,
+                      marginTop: 2
+                    }}>
+                      {dayTasks.length} task{dayTasks.length !== 1 ? "s" : ""}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
+
+          {/* Time slots grid */}
+          <div style={{ maxHeight: "calc(100vh - 250px)", overflowY: "auto" }}>
+            {timeSlots.map((slot) => (
+              <div key={slot.hour} style={{
+                display: "grid",
+                gridTemplateColumns: "60px repeat(7, 1fr)",
+                minHeight: 60,
+                borderBottom: `1px solid ${theme.border}`
+              }}>
+                {/* Time label */}
+                <div style={{
+                  padding: "8px",
+                  fontSize: 11,
+                  color: theme.textMuted,
+                  fontWeight: 600,
+                  textAlign: "right",
+                  paddingRight: 12
+                }}>
+                  {slot.label}
+                </div>
+
+                {/* Day columns */}
+                {weekDays.map((day, dayIdx) => {
+                  const dateStr = day.toISOString().split("T")[0];
+                  const daySchedule = schedule[dateStr] || [];
+                  const dayAllocations = allocateTasksToTimeSlots(daySchedule, dateStr, workWindows);
+                  
+                  // Find tasks in this time slot
+                  const slotTasks = dayAllocations.filter(alloc => {
+                    const allocHour = Math.floor(alloc.startMinutes / 60);
+                    return allocHour === slot.hour;
+                  });
+
+                  const isToday = dateStr === today;
+
+                  return (
+                    <div
+                      key={dayIdx}
+                      style={{
+                        borderLeft: `1px solid ${theme.border}`,
+                        padding: 4,
+                        background: isToday ? "rgba(232,69,69,0.02)" : "transparent",
+                        position: "relative",
+                        minHeight: 60
+                      }}
+                    >
+                      {slotTasks.map((alloc, idx) => {
+                        const pr = P(alloc.task.priority);
+                        return (
+                          <div
+                            key={idx}
+                            onClick={() => {
+                              const section = sections.find(s => s.id === alloc.task.sectionId);
+                              if (section) navigate(`/${section.slug || toSlug(section.name)}`);
+                            }}
+                            style={{
+                              background: `linear-gradient(135deg, ${pr.color}20, ${pr.color}10)`,
+                              border: `1px solid ${pr.color}`,
+                              borderRadius: 4,
+                              padding: "4px 6px",
+                              marginBottom: 2,
+                              cursor: "pointer",
+                              transition: "all 0.15s",
+                              fontSize: 11
+                            }}
+                            onMouseEnter={(e) => {
+                              e.currentTarget.style.background = `linear-gradient(135deg, ${pr.color}30, ${pr.color}20)`;
+                              e.currentTarget.style.transform = "scale(1.02)";
+                            }}
+                            onMouseLeave={(e) => {
+                              e.currentTarget.style.background = `linear-gradient(135deg, ${pr.color}20, ${pr.color}10)`;
+                              e.currentTarget.style.transform = "scale(1)";
+                            }}
+                          >
+                            <div style={{
+                              fontWeight: 600,
+                              color: theme.text,
+                              marginBottom: 2,
+                              fontSize: 11,
+                              overflow: "hidden",
+                              textOverflow: "ellipsis",
+                              whiteSpace: "nowrap"
+                            }}>
+                              {alloc.task.title}
+                            </div>
+                            <div style={{
+                              fontSize: 9,
+                              color: pr.color,
+                              fontWeight: 600
+                            }}>
+                              {alloc.startTime} • {alloc.durationMinutes}m
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  );
+                })}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Month View */}
+      {viewMode === "month" && (
+        <div style={{ marginBottom: 24 }}>
+          <div style={{
+            background: theme.bgCard, border: `1px solid ${theme.border}`,
+            borderRadius: 16, padding: 24, transition: "background 0.3s ease"
+          }}>
 
           {/* Calendar Grid */}
           <div style={{ display: "grid", gridTemplateColumns: "repeat(7,1fr)", gap: 3 }}>
@@ -195,10 +465,11 @@ function CalendarPage({ tasks, sections, onProgress, workWindows }) {
             ))}
           </div>
         </div>
-      </div>
+        </div>
+      )}
 
-      {/* Day View - Full Width Below Calendar */}
-      {selectedDate && (
+      {/* Day View - Full Width Below Calendar (only in month view) */}
+      {viewMode === "month" && selectedDate && (
         <div style={{
           background: theme.bgCard, border: `1px solid ${theme.border}`,
           borderRadius: 16, padding: 32, transition: "background 0.3s ease",
