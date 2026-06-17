@@ -4,19 +4,23 @@ import Field from "../common/Field";
 import { makeFieldStyle } from "../common/styles";
 import { useTheme } from "../../contexts/ThemeContext";
 
-function BlockedTimesModal({ open, onClose, blockedTimes, onSave }) {
+function BlockedTimesModal({ open, onClose, blockedTimes, workStart, workEnd, onSave }) {
   const { theme } = useTheme();
   const fs = makeFieldStyle(theme);
   const [times, setTimes] = useState([]);
+  const [workHoursStart, setWorkHoursStart] = useState("09:00");
+  const [workHoursEnd, setWorkHoursEnd] = useState("17:00");
 
   useEffect(() => {
-    if (open && blockedTimes) {
-      setTimes([...blockedTimes]);
+    if (open) {
+      if (blockedTimes) setTimes([...blockedTimes]);
+      if (workStart) setWorkHoursStart(workStart);
+      if (workEnd) setWorkHoursEnd(workEnd);
     }
-  }, [open, blockedTimes]);
+  }, [open, blockedTimes, workStart, workEnd]);
 
   const handleSave = () => {
-    onSave(times);
+    onSave(times, workHoursStart, workHoursEnd);
     onClose();
   };
 
@@ -52,13 +56,58 @@ function BlockedTimesModal({ open, onClose, blockedTimes, onSave }) {
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
         <div>
           <div style={{ fontFamily: "'DM Serif Display',serif", fontSize: 22, color: theme.text, marginBottom: 4 }}>
-            🚫 Blocked Times
+            ⏰ Work Hours & Blocked Times
           </div>
           <div style={{ fontSize: 12, color: theme.textMuted }}>
-            Times to exclude from task scheduling (applies to all days)
+            Configure your work day schedule and blocked times
           </div>
         </div>
         <button onClick={onClose} style={{ background: "none", border: "none", color: theme.textMuted, fontSize: 20, cursor: "pointer" }}>✕</button>
+      </div>
+
+      {/* Work Hours Configuration */}
+      <div style={{
+        background: theme.bgInput,
+        border: `1px solid ${theme.orangeBorder}`,
+        borderRadius: 12,
+        padding: "16px 18px",
+        marginBottom: 24
+      }}>
+        <div style={{
+          fontSize: 12,
+          color: theme.orange,
+          fontWeight: 700,
+          marginBottom: 12,
+          letterSpacing: "0.05em",
+          display: "flex",
+          alignItems: "center",
+          gap: 8
+        }}>
+          <span>🕐 WORK DAY HOURS (REQUIRED)</span>
+        </div>
+        <div style={{ fontSize: 11, color: theme.textMuted, marginBottom: 12 }}>
+          All tasks will be scheduled between these hours
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+          <Field label="Start Time">
+            <input
+              type="time"
+              value={workHoursStart}
+              onChange={(e) => setWorkHoursStart(e.target.value)}
+              style={fs}
+              required
+            />
+          </Field>
+          <Field label="End Time">
+            <input
+              type="time"
+              value={workHoursEnd}
+              onChange={(e) => setWorkHoursEnd(e.target.value)}
+              style={fs}
+              required
+            />
+          </Field>
+        </div>
       </div>
 
       {/* Quick Presets */}
@@ -89,7 +138,7 @@ function BlockedTimesModal({ open, onClose, blockedTimes, onSave }) {
       <div style={{ maxHeight: 400, overflowY: "auto", marginBottom: 20 }}>
         {times.length === 0 ? (
           <div style={{ textAlign: "center", padding: "40px 20px", color: theme.textDim, fontSize: 13 }}>
-            No blocked times. Tasks will be scheduled throughout the day.
+            No blocked times. Tasks will be scheduled throughout your work day.
           </div>
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
@@ -189,7 +238,7 @@ function BlockedTimesModal({ open, onClose, blockedTimes, onSave }) {
             fontWeight: 700
           }}
         >
-          Save Blocked Times
+          Save Work Hours & Blocked Times
         </button>
       </div>
     </Modal>

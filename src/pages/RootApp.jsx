@@ -22,11 +22,12 @@ import Toast           from "../components/common/Toast";
 
 import { uid, todayStr, toSlug } from "../utils/helpers";
 import { registerTokenRefresher } from "../utils/driveApi";
-import { DEFAULT_BLOCKED_TIMES } from "../utils/scheduleHelpers";
+import { DEFAULT_BLOCKED_TIMES, DEFAULT_WORK_START, DEFAULT_WORK_END } from "../utils/scheduleHelpers";
 import { useTheme } from "../contexts/ThemeContext";
 
 const TOKEN_KEY  = "flow_drive_token";
 const BLOCKED_TIMES_KEY = "flow_blocked_times";
+const WORK_HOURS_KEY = "flow_work_hours";
 const saveToken  = (t) => localStorage.setItem(TOKEN_KEY, t);
 const loadToken  = ()  => localStorage.getItem(TOKEN_KEY) || null;
 const clearToken = ()  => localStorage.removeItem(TOKEN_KEY);
@@ -48,6 +49,27 @@ const saveBlockedTimes = (times) => {
   }
 };
 
+const loadWorkHours = () => {
+  try {
+    const saved = localStorage.getItem(WORK_HOURS_KEY);
+    if (saved) {
+      const { start, end } = JSON.parse(saved);
+      return { start, end };
+    }
+    return { start: DEFAULT_WORK_START, end: DEFAULT_WORK_END };
+  } catch {
+    return { start: DEFAULT_WORK_START, end: DEFAULT_WORK_END };
+  }
+};
+
+const saveWorkHours = (start, end) => {
+  try {
+    localStorage.setItem(WORK_HOURS_KEY, JSON.stringify({ start, end }));
+  } catch {
+    console.error("Failed to save work hours");
+  }
+};
+
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Auth + data lives here; routing is delegated to child route components
@@ -58,6 +80,7 @@ export default function RootApp() {
   const [accessToken, setAccessToken] = useState(loadToken);
   const [authLoading, setAuthLoading] = useState(true);
   const [blockedTimes, setBlockedTimes] = useState(loadBlockedTimes);
+  const [workHours, setWorkHours] = useState(loadWorkHours);
   const [blockedTimesOpen, setBlockedTimesOpen] = useState(false);
 
   const { toast, showToast } = useToast();
@@ -290,15 +313,17 @@ export default function RootApp() {
     persistSections(reordered);
   }, [persistSections]);
 
-  const handleSaveBlockedTimes = useCallback((times) => {
+  const handleSaveBlockedTimes = useCallback((times, workStart, workEnd) => {
     setBlockedTimes(times);
     saveBlockedTimes(times);
-    showToast("Blocked times updated successfully!", "success");
+    setWorkHours({ start: workStart, end: workEnd });
+    saveWorkHours(workStart, workEnd);
+    showToast("Work hours and blocked times updated successfully!", "success");
   }, [showToast]);
 
   // ── Shared props bundle passed into route components ──────────────────────
   const sharedProps = {
-    tasks, sections, user, syncStatus, blockedTimes,
+    tasks, sections, user, syncStatus, blockedTimes, workHours,
     handleCycle, handleDelete, handleSave, handleMoveType, handleProgress,
     handleAddSection, handleDeleteSection, handleRenameSection, handleReorderSections,
     showToast,
@@ -348,6 +373,8 @@ export default function RootApp() {
         open={blockedTimesOpen}
         onClose={() => setBlockedTimesOpen(false)}
         blockedTimes={blockedTimes}
+        workStart={workHours.start}
+        workEnd={workHours.end}
         onSave={handleSaveBlockedTimes}
       />
 
@@ -386,7 +413,7 @@ function SectionsScreenWrapper({ tasks, sections, user, handleAddSection, handle
   );
 }
 
-function AppScreenWrapper({ tasks, sections, syncStatus, blockedTimes, handleCycle, handleDelete, handleSave, handleMoveType, handleProgress }) {
+function AppScreenWrapper({ tasks, sections, syncStatus, blockedTimes, workHours, handleCycle, handleDelete, handleSave, handleMoveType, handleProgress }) {
   const { sectionSlug } = useParams();
   const navigate        = useNavigate();
 
@@ -402,6 +429,7 @@ function AppScreenWrapper({ tasks, sections, syncStatus, blockedTimes, handleCyc
       section={section}
       tasks={tasks}
       blockedTimes={blockedTimes}
+      workHours={workHours}
       onBack={() => navigate("/")}
       onCycle={handleCycle}
       onDelete={handleDelete}

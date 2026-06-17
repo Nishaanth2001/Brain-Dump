@@ -5,7 +5,7 @@ import { P, todayStr, isDone, toSlug } from "../utils/helpers";
 import { getTasksSchedule, isTaskOnTrack, distributeTaskAcrossDays, getWorkWindowsForDate, allocateTasksToTimeSlots } from "../utils/scheduleHelpers";
 import { useTheme } from "../contexts/ThemeContext";
 
-function CalendarPage({ tasks, sections, onProgress, blockedTimes }) {
+function CalendarPage({ tasks, sections, onProgress, blockedTimes, workHours }) {
   const { theme } = useTheme();
   const navigate = useNavigate();
   const [year, setYear] = useState(new Date().getFullYear());
@@ -22,8 +22,13 @@ function CalendarPage({ tasks, sections, onProgress, blockedTimes }) {
 
   // Get schedule for all non-routine tasks (routine tasks don't need time-based scheduling)
   const schedule = useMemo(() => 
-    getTasksSchedule(tasks.filter(t => !isDone(t) && t.taskType !== "routine"), blockedTimes),
-    [tasks, blockedTimes]
+    getTasksSchedule(
+      tasks.filter(t => !isDone(t) && t.taskType !== "routine"), 
+      blockedTimes, 
+      workHours.start, 
+      workHours.end
+    ),
+    [tasks, blockedTimes, workHours.start, workHours.end]
   );
 
   // Calendar grid calculations
@@ -48,13 +53,13 @@ function CalendarPage({ tasks, sections, onProgress, blockedTimes }) {
   
   // Get work windows and task allocations for selected date
   const dayWindows = useMemo(() => 
-    selectedDate ? getWorkWindowsForDate(selectedDate, blockedTimes) : [],
-    [selectedDate, blockedTimes]
+    selectedDate ? getWorkWindowsForDate(selectedDate, blockedTimes, workHours.start, workHours.end) : [],
+    [selectedDate, blockedTimes, workHours.start, workHours.end]
   );
   
   const taskAllocations = useMemo(() => 
-    selectedDate ? allocateTasksToTimeSlots(selectedTasks, selectedDate, blockedTimes) : [],
-    [selectedDate, selectedTasks, blockedTimes]
+    selectedDate ? allocateTasksToTimeSlots(selectedTasks, selectedDate, blockedTimes, workHours.start, workHours.end) : [],
+    [selectedDate, selectedTasks, blockedTimes, workHours.start, workHours.end]
   );
 
   // Calculate daily workload (total percentage to complete)
@@ -297,7 +302,7 @@ function CalendarPage({ tasks, sections, onProgress, blockedTimes }) {
                 {weekDays.map((day, dayIdx) => {
                   const dateStr = day.toISOString().split("T")[0];
                   const daySchedule = schedule[dateStr] || [];
-                  const dayAllocations = allocateTasksToTimeSlots(daySchedule, dateStr, blockedTimes);
+                  const dayAllocations = allocateTasksToTimeSlots(daySchedule, dateStr, blockedTimes, workHours.start, workHours.end);
                   
                   // Find tasks in this time slot
                   const slotTasks = dayAllocations.filter(alloc => {
@@ -728,7 +733,7 @@ function CalendarPage({ tasks, sections, onProgress, blockedTimes }) {
                   {selectedTasks.map(({ task, targetProgress }) => {
                     const pr = P(task.priority);
                     const section = sections.find(s => s.id === task.sectionId);
-                    const trackInfo = isTaskOnTrack(task, blockedTimes);
+                    const trackInfo = isTaskOnTrack(task, blockedTimes, workHours.start, workHours.end);
                     const allocation = taskAllocations.find(a => a.task.id === task.id);
 
                     return (

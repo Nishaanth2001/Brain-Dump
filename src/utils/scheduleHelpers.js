@@ -8,15 +8,15 @@ export const DEFAULT_BLOCKED_TIMES = [
 ];
 
 // Default working hours (before blocked times are subtracted)
-const WORK_START = "09:00"; // 9 AM
-const WORK_END = "17:00";   // 5 PM
+export const DEFAULT_WORK_START = "09:00"; // 9 AM
+export const DEFAULT_WORK_END = "17:00";   // 5 PM
 
 /**
  * Calculate available work hours per day after subtracting blocked times
  */
-export function getAvailableHoursForDay(blockedTimes = DEFAULT_BLOCKED_TIMES) {
-  const [startH, startM] = WORK_START.split(":").map(Number);
-  const [endH, endM] = WORK_END.split(":").map(Number);
+export function getAvailableHoursForDay(blockedTimes = DEFAULT_BLOCKED_TIMES, workStart = DEFAULT_WORK_START, workEnd = DEFAULT_WORK_END) {
+  const [startH, startM] = workStart.split(":").map(Number);
+  const [endH, endM] = workEnd.split(":").map(Number);
   let totalMinutes = (endH * 60 + endM) - (startH * 60 + startM);
   
   // Subtract blocked times
@@ -42,11 +42,11 @@ export function getAvailableHoursForDay(blockedTimes = DEFAULT_BLOCKED_TIMES) {
 /**
  * Get list of working days between start and deadline
  */
-export function getWorkingDays(startDate, deadlineDate, blockedTimes = DEFAULT_BLOCKED_TIMES) {
+export function getWorkingDays(startDate, deadlineDate, blockedTimes = DEFAULT_BLOCKED_TIMES, workStart = DEFAULT_WORK_START, workEnd = DEFAULT_WORK_END) {
   const start = new Date(startDate + "T00:00:00");
   const end = new Date(deadlineDate + "T00:00:00");
   const days = [];
-  const availableHours = getAvailableHoursForDay(blockedTimes);
+  const availableHours = getAvailableHoursForDay(blockedTimes, workStart, workEnd);
   
   for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
     const dateStr = d.toISOString().split("T")[0];
@@ -71,7 +71,7 @@ export function getWorkingDays(startDate, deadlineDate, blockedTimes = DEFAULT_B
  * Distribute task completion percentage across available days
  * This is the core algorithm that creates the daily schedule
  */
-export function distributeTaskAcrossDays(task, blockedTimes = DEFAULT_BLOCKED_TIMES) {
+export function distributeTaskAcrossDays(task, blockedTimes = DEFAULT_BLOCKED_TIMES, workStart = DEFAULT_WORK_START, workEnd = DEFAULT_WORK_END) {
   // If no start date or deadline, can't schedule
   if (!task.startDate || !task.deadlineDate) return [];
   
@@ -85,7 +85,7 @@ export function distributeTaskAcrossDays(task, blockedTimes = DEFAULT_BLOCKED_TI
   const effectiveStart = task.startDate < today ? today : task.startDate;
   
   // Get working days from now until deadline
-  const workingDays = getWorkingDays(effectiveStart, task.deadlineDate, blockedTimes);
+  const workingDays = getWorkingDays(effectiveStart, task.deadlineDate, blockedTimes, workStart, workEnd);
   
   if (workingDays.length === 0) return [];
   
@@ -116,14 +116,14 @@ export function distributeTaskAcrossDays(task, blockedTimes = DEFAULT_BLOCKED_TI
 /**
  * Get all tasks with their daily schedules for calendar view
  */
-export function getTasksSchedule(tasks, blockedTimes = DEFAULT_BLOCKED_TIMES) {
+export function getTasksSchedule(tasks, blockedTimes = DEFAULT_BLOCKED_TIMES, workStart = DEFAULT_WORK_START, workEnd = DEFAULT_WORK_END) {
   const scheduleMap = {}; // date -> [{ task, targetProgress }]
   
   tasks.forEach(task => {
     // Only schedule tasks that are not completed
     if (task.status === "Done" || task.status === "Done Late") return;
     
-    const dailySchedule = distributeTaskAcrossDays(task, blockedTimes);
+    const dailySchedule = distributeTaskAcrossDays(task, blockedTimes, workStart, workEnd);
     
     dailySchedule.forEach(day => {
       if (!scheduleMap[day.date]) {
@@ -144,7 +144,7 @@ export function getTasksSchedule(tasks, blockedTimes = DEFAULT_BLOCKED_TIMES) {
 /**
  * Check if a task is on track based on today's progress
  */
-export function isTaskOnTrack(task, blockedTimes = DEFAULT_BLOCKED_TIMES) {
+export function isTaskOnTrack(task, blockedTimes = DEFAULT_BLOCKED_TIMES, workStart = DEFAULT_WORK_START, workEnd = DEFAULT_WORK_END) {
   if (!task.startDate || !task.deadlineDate) return { onTrack: true, message: "" };
   
   const today = new Date().toISOString().split("T")[0];
@@ -162,7 +162,7 @@ export function isTaskOnTrack(task, blockedTimes = DEFAULT_BLOCKED_TIMES) {
   }
   
   // Calculate expected progress by today
-  const workingDays = getWorkingDays(task.startDate, task.deadlineDate, blockedTimes);
+  const workingDays = getWorkingDays(task.startDate, task.deadlineDate, blockedTimes, workStart, workEnd);
   const daysPassed = workingDays.filter(d => d.date <= today);
   
   if (daysPassed.length === 0) return { onTrack: true, message: "" };
@@ -183,11 +183,11 @@ export function isTaskOnTrack(task, blockedTimes = DEFAULT_BLOCKED_TIMES) {
 /**
  * Get summary of today's scheduled work
  */
-export function getTodaysSummary(tasks, blockedTimes = DEFAULT_BLOCKED_TIMES) {
+export function getTodaysSummary(tasks, blockedTimes = DEFAULT_BLOCKED_TIMES, workStart = DEFAULT_WORK_START, workEnd = DEFAULT_WORK_END) {
   const today = new Date().toISOString().split("T")[0];
   const activeTasks = tasks.filter(t => t.status !== "Done" && t.status !== "Done Late");
   
-  const schedule = getTasksSchedule(activeTasks, blockedTimes);
+  const schedule = getTasksSchedule(activeTasks, blockedTimes, workStart, workEnd);
   const todayTasks = schedule[today] || [];
   
   const totalTarget = todayTasks.reduce((sum, s) => sum + s.targetProgress, 0);
@@ -203,10 +203,10 @@ export function getTodaysSummary(tasks, blockedTimes = DEFAULT_BLOCKED_TIMES) {
 /**
  * Get available time windows for a specific date (work hours minus blocked times)
  */
-export function getWorkWindowsForDate(dateStr, blockedTimes = DEFAULT_BLOCKED_TIMES) {
-  // Start with default work day (9 AM - 5 PM)
-  const [startH, startM] = WORK_START.split(":").map(Number);
-  const [endH, endM] = WORK_END.split(":").map(Number);
+export function getWorkWindowsForDate(dateStr, blockedTimes = DEFAULT_BLOCKED_TIMES, workStart = DEFAULT_WORK_START, workEnd = DEFAULT_WORK_END) {
+  // Start with configured work day
+  const [startH, startM] = workStart.split(":").map(Number);
+  const [endH, endM] = workEnd.split(":").map(Number);
   
   const windows = [];
   let currentStart = startH * 60 + startM;
@@ -287,8 +287,8 @@ function minutesToTime(minutes) {
 /**
  * Allocate tasks to specific time slots within the work windows for a given day
  */
-export function allocateTasksToTimeSlots(tasksForDay, dateStr, blockedTimes = DEFAULT_BLOCKED_TIMES) {
-  const dayWindows = getWorkWindowsForDate(dateStr, blockedTimes);
+export function allocateTasksToTimeSlots(tasksForDay, dateStr, blockedTimes = DEFAULT_BLOCKED_TIMES, workStart = DEFAULT_WORK_START, workEnd = DEFAULT_WORK_END) {
+  const dayWindows = getWorkWindowsForDate(dateStr, blockedTimes, workStart, workEnd);
   const availableWindows = dayWindows.filter(w => !w.blocked);
   
   if (availableWindows.length === 0) return [];
