@@ -1092,6 +1092,7 @@ function CalendarPage({ tasks, sections, onProgress, blockedTimes, workHours }) 
           )}
         </div>
       )}
+      </div>
     </div>
   );
 }
