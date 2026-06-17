@@ -69,27 +69,98 @@ function AppScreen({ section, tasks, blockedTimes, workHours, onBack, onCycle, o
   };
 
   return (
-    <div style={{ maxWidth:1200, margin:"0 auto", padding:"24px 20px" }}>
+    <div style={{ maxWidth:1200, margin:"0 auto", padding:"32px 24px" }}>
       {/* Header */}
-      <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:20, flexWrap:"wrap" }}>
-        <button onClick={onBack} style={btnBase}
-          onMouseEnter={(e)=>{e.currentTarget.style.color=theme.text;e.currentTarget.style.borderColor=theme.red;}}
-          onMouseLeave={(e)=>{e.currentTarget.style.color=theme.textMuted;e.currentTarget.style.borderColor=theme.border;}}
+      <div style={{ 
+        display:"flex", 
+        alignItems:"center", 
+        gap:16, 
+        marginBottom:28, 
+        flexWrap:"wrap",
+        background: theme.mode === "dark" 
+          ? "rgba(255,255,255,0.03)"
+          : "rgba(255,255,255,0.7)",
+        backdropFilter: "blur(20px)",
+        borderRadius: 20,
+        padding: "20px 28px",
+        border: theme.mode === "dark"
+          ? "1px solid rgba(255,255,255,0.08)"
+          : "1px solid rgba(255,255,255,0.6)",
+        boxShadow: theme.mode === "dark"
+          ? "0 8px 32px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.05)"
+          : "0 8px 32px rgba(0,0,0,0.08), inset 0 1px 0 rgba(255,255,255,0.9)"
+      }}>
+        <button onClick={onBack} style={{
+          background: theme.mode === "dark" ? "rgba(255,255,255,0.05)" : "rgba(255,255,255,0.8)",
+          border: theme.mode === "dark" ? "1px solid rgba(255,255,255,0.1)" : "1px solid rgba(0,0,0,0.08)",
+          borderRadius: 12,
+          padding: "10px 18px",
+          color: theme.mode === "dark" ? "rgba(255,255,255,0.7)" : "rgba(0,0,0,0.6)",
+          fontSize: 13,
+          cursor: "pointer",
+          fontFamily: "'DM Sans',sans-serif",
+          fontWeight: 600,
+          transition: "all 0.3s",
+          letterSpacing: "0.3px"
+        }}
+          onMouseEnter={(e)=>{
+            e.currentTarget.style.color=theme.red;
+            e.currentTarget.style.borderColor=theme.red;
+            e.currentTarget.style.transform="translateY(-1px)";
+          }}
+          onMouseLeave={(e)=>{
+            e.currentTarget.style.color=theme.mode === "dark" ? "rgba(255,255,255,0.7)" : "rgba(0,0,0,0.6)";
+            e.currentTarget.style.borderColor=theme.mode === "dark" ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.08)";
+            e.currentTarget.style.transform="translateY(0)";
+          }}
         >← Sections</button>
-        <span style={{ fontFamily:"'DM Serif Display',serif", fontSize:20, color:theme.text }}>{section.name}</span>
+        <span style={{ 
+          fontFamily:"'DM Serif Display',serif", 
+          fontSize:24, 
+          fontWeight:600,
+          background: "linear-gradient(135deg, #e84545 0%, #6366f1 100%)",
+          WebkitBackgroundClip: "text",
+          WebkitTextFillColor: "transparent",
+          backgroundClip: "text",
+          letterSpacing: "-0.5px"
+        }}>{section.name}</span>
         <div style={{ marginLeft:"auto", display:"flex", gap:12, alignItems:"center" }}>
-          <button onClick={onViewCompleted} style={{ background:"none", border:"none", color:theme.textFaint, fontSize:13, cursor:"pointer", fontFamily:"'DM Sans',sans-serif", transition:"color 0.15s" }}
+          <button onClick={onViewCompleted} style={{ 
+            background:"none", 
+            border:"none", 
+            color:theme.mode === "dark" ? "rgba(255,255,255,0.5)" : "rgba(0,0,0,0.5)", 
+            fontSize:13, 
+            cursor:"pointer", 
+            fontFamily:"'DM Sans',sans-serif", 
+            transition:"color 0.3s",
+            fontWeight: 600,
+            letterSpacing: "0.3px"
+          }}
             onMouseEnter={(e)=>e.currentTarget.style.color=theme.green}
-            onMouseLeave={(e)=>e.currentTarget.style.color=theme.textFaint}
+            onMouseLeave={(e)=>e.currentTarget.style.color=theme.mode === "dark" ? "rgba(255,255,255,0.5)" : "rgba(0,0,0,0.5)"}
           >✓ View Completed</button>
           <button onClick={()=>setDumpOpen(true)} style={{
-            background:theme.red, color:"#fff", border:"none", borderRadius:10,
-            padding:"10px 22px", fontSize:13, fontFamily:"'DM Sans',sans-serif",
-            fontWeight:700, cursor:"pointer", transition:"all 0.2s",
-            boxShadow:`0 4px 16px ${theme.redGlow}`,
+            background:"linear-gradient(135deg, #e84545 0%, #d63939 100%)",
+            color:"#fff", 
+            border:"none", 
+            borderRadius:12,
+            padding:"10px 22px", 
+            fontSize:13, 
+            fontFamily:"'DM Sans',sans-serif",
+            fontWeight:700, 
+            cursor:"pointer", 
+            transition:"all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+            boxShadow:"0 4px 16px rgba(232,69,69,0.3)",
+            letterSpacing: "0.3px"
           }}
-            onMouseEnter={(e)=>{e.currentTarget.style.transform="translateY(-1px)";e.currentTarget.style.boxShadow=`0 8px 24px ${theme.redGlow}`;}}
-            onMouseLeave={(e)=>{e.currentTarget.style.transform="translateY(0)";e.currentTarget.style.boxShadow=`0 4px 16px ${theme.redGlow}`;}}
+            onMouseEnter={(e)=>{
+              e.currentTarget.style.transform="translateY(-2px)";
+              e.currentTarget.style.boxShadow="0 6px 24px rgba(232,69,69,0.45)";
+            }}
+            onMouseLeave={(e)=>{
+              e.currentTarget.style.transform="translateY(0)";
+              e.currentTarget.style.boxShadow="0 4px 16px rgba(232,69,69,0.3)";
+            }}
           >🧠 Brain Dump</button>
         </div>
       </div>

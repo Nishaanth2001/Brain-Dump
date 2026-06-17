@@ -120,35 +120,152 @@ function CalendarPage({ tasks, sections, onProgress, blockedTimes, workHours }) 
   });
 
   return (
-    <div style={{ maxWidth: 1600, margin: "0 auto", padding: "24px 20px" }}>
+    <div style={{ 
+      minHeight: "100vh",
+      background: theme.mode === "dark" 
+        ? "linear-gradient(135deg, #0f0f23 0%, #1a1a2e 50%, #16213e 100%)"
+        : "linear-gradient(135deg, #f5f7fa 0%, #e8ecf3 50%, #dde4ed 100%)",
+      padding: "32px 24px",
+      position: "relative",
+      overflow: "hidden"
+    }}>
+      {/* Decorative background elements */}
+      <div style={{
+        position: "absolute",
+        top: -100,
+        right: -100,
+        width: 400,
+        height: 400,
+        background: theme.mode === "dark"
+          ? "radial-gradient(circle, rgba(232,69,69,0.15) 0%, transparent 70%)"
+          : "radial-gradient(circle, rgba(232,69,69,0.08) 0%, transparent 70%)",
+        borderRadius: "50%",
+        filter: "blur(60px)",
+        pointerEvents: "none"
+      }} />
+      <div style={{
+        position: "absolute",
+        bottom: -150,
+        left: -150,
+        width: 500,
+        height: 500,
+        background: theme.mode === "dark"
+          ? "radial-gradient(circle, rgba(99,102,241,0.15) 0%, transparent 70%)"
+          : "radial-gradient(circle, rgba(99,102,241,0.08) 0%, transparent 70%)",
+        borderRadius: "50%",
+        filter: "blur(80px)",
+        pointerEvents: "none"
+      }} />
+
+      <div style={{ maxWidth: 1600, margin: "0 auto", position: "relative", zIndex: 1 }}>
       {/* Header */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24, flexWrap: "wrap", gap: 12 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+      <div style={{ 
+        display: "flex", 
+        alignItems: "center", 
+        justifyContent: "space-between", 
+        marginBottom: 32, 
+        flexWrap: "wrap", 
+        gap: 16,
+        background: theme.mode === "dark" 
+          ? "rgba(255,255,255,0.03)"
+          : "rgba(255,255,255,0.7)",
+        backdropFilter: "blur(20px)",
+        borderRadius: 20,
+        padding: "20px 28px",
+        border: theme.mode === "dark"
+          ? "1px solid rgba(255,255,255,0.08)"
+          : "1px solid rgba(255,255,255,0.6)",
+        boxShadow: theme.mode === "dark"
+          ? "0 8px 32px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.05)"
+          : "0 8px 32px rgba(0,0,0,0.08), inset 0 1px 0 rgba(255,255,255,0.9)"
+      }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 20 }}>
           <button
             onClick={goToToday}
             style={{
-              background: theme.bgInput, border: `1px solid ${theme.border}`,
-              borderRadius: 8, padding: "8px 16px", color: theme.text,
-              fontSize: 13, cursor: "pointer", fontFamily: "'DM Sans',sans-serif",
-              fontWeight: 600, transition: "all 0.15s"
+              background: "linear-gradient(135deg, #e84545 0%, #d63939 100%)",
+              border: "none",
+              borderRadius: 12,
+              padding: "10px 20px",
+              color: "#fff",
+              fontSize: 13,
+              cursor: "pointer",
+              fontFamily: "'DM Sans',sans-serif",
+              fontWeight: 700,
+              transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+              boxShadow: "0 4px 16px rgba(232,69,69,0.3)",
+              letterSpacing: "0.3px"
             }}
-            onMouseEnter={(e) => { e.currentTarget.style.borderColor = theme.red; }}
-            onMouseLeave={(e) => { e.currentTarget.style.borderColor = theme.border; }}
+            onMouseEnter={(e) => { 
+              e.currentTarget.style.transform = "translateY(-2px)";
+              e.currentTarget.style.boxShadow = "0 6px 24px rgba(232,69,69,0.45)";
+            }}
+            onMouseLeave={(e) => { 
+              e.currentTarget.style.transform = "translateY(0)";
+              e.currentTarget.style.boxShadow = "0 4px 16px rgba(232,69,69,0.3)";
+            }}
           >
-            Today
+            ⚡ Today
           </button>
           
           {viewMode === "week" && (
             <>
-              <button onClick={prevWeek} style={navBtn}
-                onMouseEnter={(e) => { e.currentTarget.style.color = theme.text; e.currentTarget.style.background = theme.bgHover; }}
-                onMouseLeave={(e) => { e.currentTarget.style.color = theme.textMuted; e.currentTarget.style.background = "none"; }}
-              >‹</button>
-              <button onClick={nextWeek} style={navBtn}
-                onMouseEnter={(e) => { e.currentTarget.style.color = theme.text; e.currentTarget.style.background = theme.bgHover; }}
-                onMouseLeave={(e) => { e.currentTarget.style.color = theme.textMuted; e.currentTarget.style.background = "none"; }}
-              >›</button>
-              <div style={{ fontFamily: "'DM Serif Display',serif", fontSize: 20, color: theme.text }}>
+              <button onClick={prevWeek} style={{
+                background: "none",
+                border: "none",
+                color: theme.mode === "dark" ? "rgba(255,255,255,0.6)" : "rgba(0,0,0,0.5)",
+                fontSize: 24,
+                cursor: "pointer",
+                padding: "4px 12px",
+                borderRadius: 10,
+                transition: "all 0.3s",
+                display: "flex",
+                alignItems: "center"
+              }}
+                onMouseEnter={(e) => { 
+                  e.currentTarget.style.color = theme.red;
+                  e.currentTarget.style.background = theme.mode === "dark" ? "rgba(232,69,69,0.1)" : "rgba(232,69,69,0.08)";
+                  e.currentTarget.style.transform = "translateX(-2px)";
+                }}
+                onMouseLeave={(e) => { 
+                  e.currentTarget.style.color = theme.mode === "dark" ? "rgba(255,255,255,0.6)" : "rgba(0,0,0,0.5)";
+                  e.currentTarget.style.background = "none";
+                  e.currentTarget.style.transform = "translateX(0)";
+                }}
+              >←</button>
+              <button onClick={nextWeek} style={{
+                background: "none",
+                border: "none",
+                color: theme.mode === "dark" ? "rgba(255,255,255,0.6)" : "rgba(0,0,0,0.5)",
+                fontSize: 24,
+                cursor: "pointer",
+                padding: "4px 12px",
+                borderRadius: 10,
+                transition: "all 0.3s",
+                display: "flex",
+                alignItems: "center"
+              }}
+                onMouseEnter={(e) => { 
+                  e.currentTarget.style.color = theme.red;
+                  e.currentTarget.style.background = theme.mode === "dark" ? "rgba(232,69,69,0.1)" : "rgba(232,69,69,0.08)";
+                  e.currentTarget.style.transform = "translateX(2px)";
+                }}
+                onMouseLeave={(e) => { 
+                  e.currentTarget.style.color = theme.mode === "dark" ? "rgba(255,255,255,0.6)" : "rgba(0,0,0,0.5)";
+                  e.currentTarget.style.background = "none";
+                  e.currentTarget.style.transform = "translateX(0)";
+                }}
+              >→</button>
+              <div style={{ 
+                fontFamily: "'DM Serif Display',serif", 
+                fontSize: 24, 
+                fontWeight: 600,
+                background: "linear-gradient(135deg, #e84545 0%, #6366f1 100%)",
+                WebkitBackgroundClip: "text",
+                WebkitTextFillColor: "transparent",
+                backgroundClip: "text",
+                letterSpacing: "-0.5px"
+              }}>
                 {weekRange}
               </div>
             </>
@@ -156,15 +273,58 @@ function CalendarPage({ tasks, sections, onProgress, blockedTimes, workHours }) 
           
           {viewMode === "month" && (
             <>
-              <button onClick={prev} style={navBtn}
-                onMouseEnter={(e) => { e.currentTarget.style.color = theme.text; e.currentTarget.style.background = theme.bgHover; }}
-                onMouseLeave={(e) => { e.currentTarget.style.color = theme.textMuted; e.currentTarget.style.background = "none"; }}
-              >‹</button>
-              <button onClick={next} style={navBtn}
-                onMouseEnter={(e) => { e.currentTarget.style.color = theme.text; e.currentTarget.style.background = theme.bgHover; }}
-                onMouseLeave={(e) => { e.currentTarget.style.color = theme.textMuted; e.currentTarget.style.background = "none"; }}
-              >›</button>
-              <div style={{ fontFamily: "'DM Serif Display',serif", fontSize: 20, color: theme.text }}>
+              <button onClick={prev} style={{
+                background: "none",
+                border: "none",
+                color: theme.mode === "dark" ? "rgba(255,255,255,0.6)" : "rgba(0,0,0,0.5)",
+                fontSize: 24,
+                cursor: "pointer",
+                padding: "4px 12px",
+                borderRadius: 10,
+                transition: "all 0.3s"
+              }}
+                onMouseEnter={(e) => { 
+                  e.currentTarget.style.color = theme.red;
+                  e.currentTarget.style.background = theme.mode === "dark" ? "rgba(232,69,69,0.1)" : "rgba(232,69,69,0.08)";
+                  e.currentTarget.style.transform = "translateX(-2px)";
+                }}
+                onMouseLeave={(e) => { 
+                  e.currentTarget.style.color = theme.mode === "dark" ? "rgba(255,255,255,0.6)" : "rgba(0,0,0,0.5)";
+                  e.currentTarget.style.background = "none";
+                  e.currentTarget.style.transform = "translateX(0)";
+                }}
+              >←</button>
+              <button onClick={next} style={{
+                background: "none",
+                border: "none",
+                color: theme.mode === "dark" ? "rgba(255,255,255,0.6)" : "rgba(0,0,0,0.5)",
+                fontSize: 24,
+                cursor: "pointer",
+                padding: "4px 12px",
+                borderRadius: 10,
+                transition: "all 0.3s"
+              }}
+                onMouseEnter={(e) => { 
+                  e.currentTarget.style.color = theme.red;
+                  e.currentTarget.style.background = theme.mode === "dark" ? "rgba(232,69,69,0.1)" : "rgba(232,69,69,0.08)";
+                  e.currentTarget.style.transform = "translateX(2px)";
+                }}
+                onMouseLeave={(e) => { 
+                  e.currentTarget.style.color = theme.mode === "dark" ? "rgba(255,255,255,0.6)" : "rgba(0,0,0,0.5)";
+                  e.currentTarget.style.background = "none";
+                  e.currentTarget.style.transform = "translateX(0)";
+                }}
+              >→</button>
+              <div style={{ 
+                fontFamily: "'DM Serif Display',serif", 
+                fontSize: 24, 
+                fontWeight: 600,
+                background: "linear-gradient(135deg, #e84545 0%, #6366f1 100%)",
+                WebkitBackgroundClip: "text",
+                WebkitTextFillColor: "transparent",
+                backgroundClip: "text",
+                letterSpacing: "-0.5px"
+              }}>
                 {MONTHS[month]} {year}
               </div>
             </>
@@ -173,20 +333,31 @@ function CalendarPage({ tasks, sections, onProgress, blockedTimes, workHours }) 
         
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
           {/* View Mode Toggle */}
-          <div style={{ display: "flex", gap: 4, background: theme.bgInput, borderRadius: 8, padding: 4 }}>
+          <div style={{ 
+            display: "flex", 
+            gap: 6, 
+            background: theme.mode === "dark" ? "rgba(0,0,0,0.3)" : "rgba(0,0,0,0.05)",
+            borderRadius: 14, 
+            padding: 6,
+            border: theme.mode === "dark" ? "1px solid rgba(255,255,255,0.05)" : "1px solid rgba(0,0,0,0.08)"
+          }}>
             <button
               onClick={() => setViewMode("week")}
               style={{
-                background: viewMode === "week" ? theme.bgCard : "transparent",
+                background: viewMode === "week" 
+                  ? "linear-gradient(135deg, #e84545 0%, #d63939 100%)"
+                  : "transparent",
                 border: "none",
-                borderRadius: 6,
-                padding: "6px 14px",
-                color: viewMode === "week" ? theme.text : theme.textMuted,
-                fontSize: 12,
+                borderRadius: 10,
+                padding: "8px 18px",
+                color: viewMode === "week" ? "#fff" : theme.mode === "dark" ? "rgba(255,255,255,0.5)" : "rgba(0,0,0,0.5)",
+                fontSize: 13,
                 cursor: "pointer",
                 fontFamily: "'DM Sans',sans-serif",
-                fontWeight: 600,
-                transition: "all 0.15s"
+                fontWeight: 700,
+                transition: "all 0.3s",
+                boxShadow: viewMode === "week" ? "0 4px 12px rgba(232,69,69,0.3)" : "none",
+                letterSpacing: "0.3px"
               }}
             >
               Week
@@ -194,16 +365,20 @@ function CalendarPage({ tasks, sections, onProgress, blockedTimes, workHours }) 
             <button
               onClick={() => setViewMode("month")}
               style={{
-                background: viewMode === "month" ? theme.bgCard : "transparent",
+                background: viewMode === "month" 
+                  ? "linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)"
+                  : "transparent",
                 border: "none",
-                borderRadius: 6,
-                padding: "6px 14px",
-                color: viewMode === "month" ? theme.text : theme.textMuted,
-                fontSize: 12,
+                borderRadius: 10,
+                padding: "8px 18px",
+                color: viewMode === "month" ? "#fff" : theme.mode === "dark" ? "rgba(255,255,255,0.5)" : "rgba(0,0,0,0.5)",
+                fontSize: 13,
                 cursor: "pointer",
                 fontFamily: "'DM Sans',sans-serif",
-                fontWeight: 600,
-                transition: "all 0.15s"
+                fontWeight: 700,
+                transition: "all 0.3s",
+                boxShadow: viewMode === "month" ? "0 4px 12px rgba(99,102,241,0.3)" : "none",
+                letterSpacing: "0.3px"
               }}
             >
               Month
@@ -213,13 +388,30 @@ function CalendarPage({ tasks, sections, onProgress, blockedTimes, workHours }) 
           <button
             onClick={() => navigate("/")}
             style={{
-              background: theme.bgInput, border: `1px solid ${theme.border}`,
-              borderRadius: 10, padding: "8px 16px", color: theme.textMuted,
-              fontSize: 13, cursor: "pointer", fontFamily: "'DM Sans',sans-serif",
-              fontWeight: 600, transition: "all 0.15s"
+              background: theme.mode === "dark" ? "rgba(255,255,255,0.05)" : "rgba(255,255,255,0.8)",
+              border: theme.mode === "dark" ? "1px solid rgba(255,255,255,0.1)" : "1px solid rgba(0,0,0,0.08)",
+              borderRadius: 12,
+              padding: "10px 20px",
+              color: theme.mode === "dark" ? "rgba(255,255,255,0.7)" : "rgba(0,0,0,0.6)",
+              fontSize: 13,
+              cursor: "pointer",
+              fontFamily: "'DM Sans',sans-serif",
+              fontWeight: 600,
+              transition: "all 0.3s",
+              letterSpacing: "0.3px"
             }}
-            onMouseEnter={(e) => { e.currentTarget.style.color = theme.text; e.currentTarget.style.borderColor = theme.red; }}
-            onMouseLeave={(e) => { e.currentTarget.style.color = theme.textMuted; e.currentTarget.style.borderColor = theme.border; }}
+            onMouseEnter={(e) => { 
+              e.currentTarget.style.background = theme.mode === "dark" ? "rgba(255,255,255,0.08)" : "rgba(255,255,255,1)";
+              e.currentTarget.style.color = theme.red;
+              e.currentTarget.style.borderColor = theme.red;
+              e.currentTarget.style.transform = "translateY(-1px)";
+            }}
+            onMouseLeave={(e) => { 
+              e.currentTarget.style.background = theme.mode === "dark" ? "rgba(255,255,255,0.05)" : "rgba(255,255,255,0.8)";
+              e.currentTarget.style.color = theme.mode === "dark" ? "rgba(255,255,255,0.7)" : "rgba(0,0,0,0.6)";
+              e.currentTarget.style.borderColor = theme.mode === "dark" ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.08)";
+              e.currentTarget.style.transform = "translateY(0)";
+            }}
           >
             ← Back
           </button>
@@ -229,12 +421,31 @@ function CalendarPage({ tasks, sections, onProgress, blockedTimes, workHours }) 
       {/* Week View */}
       {viewMode === "week" && (
         <div style={{
-          background: theme.bgCard, border: `1px solid ${theme.border}`,
-          borderRadius: 16, overflow: "hidden", transition: "background 0.3s ease"
+          background: theme.mode === "dark" 
+            ? "rgba(255,255,255,0.02)"
+            : "rgba(255,255,255,0.6)",
+          backdropFilter: "blur(20px)",
+          border: theme.mode === "dark"
+            ? "1px solid rgba(255,255,255,0.08)"
+            : "1px solid rgba(255,255,255,0.8)",
+          borderRadius: 24,
+          overflow: "hidden",
+          boxShadow: theme.mode === "dark"
+            ? "0 20px 60px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.05)"
+            : "0 20px 60px rgba(0,0,0,0.1), inset 0 1px 0 rgba(255,255,255,1)"
         }}>
           {/* Week header with days */}
-          <div style={{ display: "grid", gridTemplateColumns: "60px repeat(7, 1fr)", borderBottom: `1px solid ${theme.border}` }}>
-            <div style={{ padding: "12px 8px", fontSize: 11, color: theme.textMuted, fontWeight: 600 }}></div>
+          <div style={{ 
+            display: "grid", 
+            gridTemplateColumns: "70px repeat(7, 1fr)", 
+            borderBottom: theme.mode === "dark" 
+              ? "1px solid rgba(255,255,255,0.06)"
+              : "1px solid rgba(0,0,0,0.06)",
+            background: theme.mode === "dark"
+              ? "linear-gradient(135deg, rgba(232,69,69,0.05) 0%, rgba(99,102,241,0.05) 100%)"
+              : "linear-gradient(135deg, rgba(232,69,69,0.03) 0%, rgba(99,102,241,0.03) 100%)"
+          }}>
+            <div style={{ padding: "16px 12px", fontSize: 11, color: theme.textMuted, fontWeight: 700 }}></div>
             {weekDays.map((day, idx) => {
               const dateStr = day.toISOString().split("T")[0];
               const isToday = dateStr === today;
@@ -242,32 +453,57 @@ function CalendarPage({ tasks, sections, onProgress, blockedTimes, workHours }) 
               
               return (
                 <div key={idx} style={{
-                  padding: "12px 8px",
+                  padding: "16px 12px",
                   textAlign: "center",
-                  borderLeft: `1px solid ${theme.border}`,
-                  background: isToday ? theme.redDim : "transparent"
+                  borderLeft: theme.mode === "dark" 
+                    ? "1px solid rgba(255,255,255,0.06)"
+                    : "1px solid rgba(0,0,0,0.06)",
+                  background: isToday 
+                    ? theme.mode === "dark"
+                      ? "linear-gradient(180deg, rgba(232,69,69,0.15) 0%, rgba(232,69,69,0.05) 100%)"
+                      : "linear-gradient(180deg, rgba(232,69,69,0.12) 0%, rgba(232,69,69,0.04) 100%)"
+                    : "transparent",
+                  position: "relative",
+                  transition: "all 0.3s"
                 }}>
+                  {isToday && (
+                    <div style={{
+                      position: "absolute",
+                      top: 0,
+                      left: 0,
+                      right: 0,
+                      height: 3,
+                      background: "linear-gradient(90deg, #e84545 0%, #d63939 100%)",
+                      boxShadow: "0 2px 8px rgba(232,69,69,0.4)"
+                    }} />
+                  )}
                   <div style={{
                     fontSize: 10,
-                    color: theme.textMuted,
-                    fontWeight: 600,
-                    marginBottom: 4,
-                    textTransform: "uppercase"
+                    color: theme.mode === "dark" ? "rgba(255,255,255,0.5)" : "rgba(0,0,0,0.5)",
+                    fontWeight: 700,
+                    marginBottom: 6,
+                    textTransform: "uppercase",
+                    letterSpacing: "1px"
                   }}>
                     {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"][idx]}
                   </div>
                   <div style={{
-                    fontSize: 18,
-                    color: isToday ? theme.red : theme.text,
-                    fontWeight: isToday ? 700 : 600
+                    fontSize: 22,
+                    color: isToday ? "#e84545" : theme.text,
+                    fontWeight: 700,
+                    marginBottom: 4
                   }}>
                     {day.getDate()}
                   </div>
                   {dayTasks.length > 0 && (
                     <div style={{
                       fontSize: 9,
-                      color: theme.textMuted,
-                      marginTop: 2
+                      color: theme.mode === "dark" ? "rgba(255,255,255,0.4)" : "rgba(0,0,0,0.4)",
+                      fontWeight: 600,
+                      background: theme.mode === "dark" ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.05)",
+                      padding: "3px 8px",
+                      borderRadius: 8,
+                      display: "inline-block"
                     }}>
                       {dayTasks.length} task{dayTasks.length !== 1 ? "s" : ""}
                     </div>
@@ -278,22 +514,29 @@ function CalendarPage({ tasks, sections, onProgress, blockedTimes, workHours }) 
           </div>
 
           {/* Time slots grid */}
-          <div style={{ maxHeight: "calc(100vh - 250px)", overflowY: "auto" }}>
+          <div style={{ maxHeight: "calc(100vh - 320px)", overflowY: "auto" }}>
             {timeSlots.map((slot) => (
               <div key={slot.hour} style={{
                 display: "grid",
-                gridTemplateColumns: "60px repeat(7, 1fr)",
-                minHeight: 60,
-                borderBottom: `1px solid ${theme.border}`
+                gridTemplateColumns: "70px repeat(7, 1fr)",
+                minHeight: 70,
+                borderBottom: theme.mode === "dark" 
+                  ? "1px solid rgba(255,255,255,0.04)"
+                  : "1px solid rgba(0,0,0,0.04)",
+                transition: "background 0.3s"
               }}>
                 {/* Time label */}
                 <div style={{
-                  padding: "8px",
+                  padding: "12px",
                   fontSize: 11,
-                  color: theme.textMuted,
-                  fontWeight: 600,
+                  color: theme.mode === "dark" ? "rgba(255,255,255,0.4)" : "rgba(0,0,0,0.4)",
+                  fontWeight: 700,
                   textAlign: "right",
-                  paddingRight: 12
+                  paddingRight: 16,
+                  display: "flex",
+                  alignItems: "flex-start",
+                  justifyContent: "flex-end",
+                  letterSpacing: "0.5px"
                 }}>
                   {slot.label}
                 </div>
@@ -316,11 +559,17 @@ function CalendarPage({ tasks, sections, onProgress, blockedTimes, workHours }) 
                     <div
                       key={dayIdx}
                       style={{
-                        borderLeft: `1px solid ${theme.border}`,
-                        padding: 4,
-                        background: isToday ? "rgba(232,69,69,0.02)" : "transparent",
+                        borderLeft: theme.mode === "dark" 
+                          ? "1px solid rgba(255,255,255,0.04)"
+                          : "1px solid rgba(0,0,0,0.04)",
+                        padding: 6,
+                        background: isToday 
+                          ? theme.mode === "dark" 
+                            ? "rgba(232,69,69,0.02)" 
+                            : "rgba(232,69,69,0.015)"
+                          : "transparent",
                         position: "relative",
-                        minHeight: 60
+                        minHeight: 70
                       }}
                     >
                       {slotTasks.map((alloc, idx) => {
@@ -333,47 +582,54 @@ function CalendarPage({ tasks, sections, onProgress, blockedTimes, workHours }) 
                               if (section) navigate(`/${section.slug || toSlug(section.name)}`);
                             }}
                             style={{
-                              background: `linear-gradient(135deg, ${pr.color}20, ${pr.color}10)`,
-                              border: `1px solid ${pr.color}`,
-                              borderRadius: 4,
-                              padding: "4px 6px",
-                              marginBottom: 2,
+                              background: `linear-gradient(135deg, ${pr.color}25, ${pr.color}12)`,
+                              border: `2px solid ${pr.color}`,
+                              borderRadius: 10,
+                              padding: "8px 10px",
+                              marginBottom: 4,
                               cursor: "pointer",
-                              transition: "all 0.15s",
-                              fontSize: 11
+                              transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+                              fontSize: 11,
+                              boxShadow: `0 4px 12px ${pr.color}20`,
+                              backdropFilter: "blur(10px)"
                             }}
                             onMouseEnter={(e) => {
-                              e.currentTarget.style.background = `linear-gradient(135deg, ${pr.color}30, ${pr.color}20)`;
-                              e.currentTarget.style.transform = "scale(1.02)";
+                              e.currentTarget.style.background = `linear-gradient(135deg, ${pr.color}35, ${pr.color}20)`;
+                              e.currentTarget.style.transform = "translateY(-2px) scale(1.02)";
+                              e.currentTarget.style.boxShadow = `0 8px 20px ${pr.color}35`;
                             }}
                             onMouseLeave={(e) => {
-                              e.currentTarget.style.background = `linear-gradient(135deg, ${pr.color}20, ${pr.color}10)`;
-                              e.currentTarget.style.transform = "scale(1)";
+                              e.currentTarget.style.background = `linear-gradient(135deg, ${pr.color}25, ${pr.color}12)`;
+                              e.currentTarget.style.transform = "translateY(0) scale(1)";
+                              e.currentTarget.style.boxShadow = `0 4px 12px ${pr.color}20`;
                             }}
                           >
                             <div style={{
                               display: "flex", alignItems: "center", justifyContent: "space-between",
-                              gap: 4, marginBottom: 2
+                              gap: 6, marginBottom: 4
                             }}>
                               <div style={{
-                                fontWeight: 600,
+                                fontWeight: 700,
                                 color: theme.text,
                                 fontSize: 11,
                                 overflow: "hidden",
                                 textOverflow: "ellipsis",
                                 whiteSpace: "nowrap",
-                                flex: 1
+                                flex: 1,
+                                letterSpacing: "0.2px"
                               }}>
                                 {alloc.task.title}
                               </div>
                               <span style={{
                                 background: pr.color,
                                 color: "#fff",
-                                padding: "1px 5px",
-                                borderRadius: 3,
+                                padding: "2px 7px",
+                                borderRadius: 6,
                                 fontSize: 9,
-                                fontWeight: 700,
-                                flexShrink: 0
+                                fontWeight: 800,
+                                flexShrink: 0,
+                                boxShadow: `0 2px 8px ${pr.color}40`,
+                                letterSpacing: "0.3px"
                               }}>
                                 {alloc.targetProgress}%
                               </span>
@@ -381,7 +637,8 @@ function CalendarPage({ tasks, sections, onProgress, blockedTimes, workHours }) 
                             <div style={{
                               fontSize: 9,
                               color: pr.color,
-                              fontWeight: 600
+                              fontWeight: 700,
+                              letterSpacing: "0.3px"
                             }}>
                               {alloc.startTime} • {alloc.durationMinutes}m
                             </div>

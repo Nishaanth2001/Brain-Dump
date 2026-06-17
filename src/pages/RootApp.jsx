@@ -351,14 +351,55 @@ export default function RootApp() {
   }
 
   return (
-    <div style={{ minHeight:"100vh", background:theme.bg, color:theme.text, transition:"background 0.3s ease, color 0.3s ease" }}>
+    <div style={{ 
+      minHeight:"100vh", 
+      background: theme.mode === "dark"
+        ? "linear-gradient(135deg, #0f0f23 0%, #1a1a2e 50%, #16213e 100%)"
+        : "linear-gradient(135deg, #f5f7fa 0%, #e8ecf3 50%, #dde4ed 100%)",
+      color:theme.text, 
+      transition:"background 0.3s ease, color 0.3s ease",
+      position: "relative",
+      overflow: "hidden"
+    }}>
+      {/* Decorative background orbs */}
+      <div style={{
+        position: "fixed",
+        top: -100,
+        right: -100,
+        width: 400,
+        height: 400,
+        background: theme.mode === "dark"
+          ? "radial-gradient(circle, rgba(232,69,69,0.15) 0%, transparent 70%)"
+          : "radial-gradient(circle, rgba(232,69,69,0.08) 0%, transparent 70%)",
+        borderRadius: "50%",
+        filter: "blur(60px)",
+        pointerEvents: "none",
+        zIndex: 0
+      }} />
+      <div style={{
+        position: "fixed",
+        bottom: -150,
+        left: -150,
+        width: 500,
+        height: 500,
+        background: theme.mode === "dark"
+          ? "radial-gradient(circle, rgba(99,102,241,0.15) 0%, transparent 70%)"
+          : "radial-gradient(circle, rgba(99,102,241,0.08) 0%, transparent 70%)",
+        borderRadius: "50%",
+        filter: "blur(80px)",
+        pointerEvents: "none",
+        zIndex: 0
+      }} />
+
+      <div style={{ position: "relative", zIndex: 1 }}>
         <TopBar
           user={user}
           syncStatus={syncStatus}
           onSignOut={handleSignOut}
           onReconnect={handleReconnect}
           onOpenBlockedTimes={() => setBlockedTimesOpen(true)}
-        />      <Routes>
+        />
+        <Routes>
         <Route index element={<SectionsScreenWrapper {...sharedProps} />} />
         <Route path="calendar" element={<CalendarPage {...sharedProps} />} />
         {/* /completed must be explicit before /:sectionSlug — otherwise React Router
@@ -379,6 +420,7 @@ export default function RootApp() {
       />
 
       <Toast message={toast.msg} type={toast.type} visible={toast.visible} />
+      </div>
     </div>
   );
 }
