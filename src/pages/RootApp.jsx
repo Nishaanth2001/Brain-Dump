@@ -18,6 +18,7 @@ import AppScreen       from "../components/tasks/AppScreen";
 import CompletedScreen from "../components/completed/CompletedScreen";
 import CalendarPage    from "./CalendarPage";
 import BlockedTimesModal from "../components/settings/BlockedTimesModal";
+import AIChatAssistant  from "../components/chat/AIChatAssistant";
 import Toast           from "../components/common/Toast";
 
 import { uid, todayStr, toSlug } from "../utils/helpers";
@@ -420,6 +421,14 @@ export default function RootApp() {
       />
 
       <Toast message={toast.msg} type={toast.type} visible={toast.visible} />
+
+      <AIChatAssistant
+        tasks={tasks}
+        sections={sections}
+        blockedTimes={blockedTimes}
+        workHours={workHours}
+        onSave={handleSave}
+      />
       </div>
     </div>
   );
