@@ -74,7 +74,25 @@ async function requireAuth(req, res, next) {
 // App
 // ─────────────────────────────────────────────────────────────────────────────
 const app = express();
-app.use(cors());
+
+// In production, set ALLOWED_ORIGIN to your real frontend URL
+// (e.g. https://yourusername.github.io) to lock down CORS. If unset, all
+// origins are allowed — convenient for local testing, but should be set
+// explicitly before going live.
+const ALLOWED_ORIGIN = process.env.ALLOWED_ORIGIN || null;
+app.use(cors({
+  origin: ALLOWED_ORIGIN || true,
+}));
+
+// Chrome's Private Network Access (PNA) policy requires servers on
+// localhost/private IPs to explicitly opt in before a public HTTPS page
+// (e.g. your GitHub Pages site) is allowed to fetch() them. Not needed once
+// the server itself is hosted on a public HTTPS domain, but harmless to leave.
+app.use((req, res, next) => {
+  res.setHeader("Access-Control-Allow-Private-Network", "true");
+  next();
+});
+
 app.use(express.json({ limit: "5mb" }));
 
 app.get("/health", (_req, res) => res.json({ ok: true }));
