@@ -1,7 +1,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// Hybrid AI Chat Engine — Rule-based conversation + compromise.js NLP
+// DEPRECATED — This file is no longer used.
+// The chatbot now uses llmChatEngine.js (LLM-powered, no keyword matching).
 // ─────────────────────────────────────────────────────────────────────────────
-import nlp from "compromise";
 
 // ── NLP Helpers ─────────────────────────────────────────────────────────────
 
@@ -112,6 +112,38 @@ export function matchSection(text, sections) {
   return null;
 }
 
+/** Parse a natural-language time into HH:MM (24h) */
+export function parseTime(text) {
+  const lower = text.toLowerCase().trim();
+
+  // Named shortcuts
+  if (/\b(morning|start of day)\b/.test(lower)) return "09:00";
+  if (/\b(noon|midday|lunch)\b/.test(lower)) return "12:00";
+  if (/\b(afternoon)\b/.test(lower)) return "14:00";
+  if (/\b(evening|end of day|eod)\b/.test(lower)) return "17:00";
+
+  // Match patterns: "9:30 am", "9:30am", "09:30", "9am", "14:30", "2 pm"
+  const timeRegex = /(\d{1,2}):?(\d{2})?\s*(am|pm|a\.m\.|p\.m\.)?/i;
+  const match = lower.match(timeRegex);
+
+  if (match) {
+    let hours = parseInt(match[1]);
+    const minutes = parseInt(match[2] || "0");
+    const period = match[3]?.replace(/\./g, "").toLowerCase();
+
+    if (period === "pm" && hours < 12) hours += 12;
+    if (period === "am" && hours === 12) hours = 0;
+    // If no period given and hours <= 7, assume PM (e.g. "5" → 17:00)
+    if (!period && hours >= 1 && hours <= 7) hours += 12;
+
+    if (hours >= 0 && hours <= 23 && minutes >= 0 && minutes <= 59) {
+      return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
+    }
+  }
+
+  return null;
+}
+
 /** Detect task type from text */
 export function parseTaskType(text) {
   const lower = text.toLowerCase();
@@ -131,6 +163,37 @@ export function detectIntent(text) {
   // Help / info
   if (/\b(help|what can you do|how do|guide|tutorial|explain)\b/.test(lower))
     return "help";
+
+  // Status change intents (must be before add_task to avoid conflict)
+  if (/\b(mark|move|push|set|change|update|switch)\b.*\b(status|to|as|into)\b.*\b(in\s*progress|inprogress|started|working|done|complete|completed|finished|not started)\b/.test(lower))
+    return "update_status";
+  if (/\b(in\s*progress|inprogress|done|complete|completed|finished|not started)\b/.test(lower) &&
+      /\b(mark|move|push|set|change|update|switch|put)\b/.test(lower))
+    return "update_status";
+  if (/\b(start|begin|work on|working on)\b/.test(lower) && !/\b(add|create|new|make)\b/.test(lower))
+    return "update_status";
+  if (/\b(mark|complete|finish|done)\b.*\b(task|it)\b/.test(lower))
+    return "update_status";
+  if (/\b(mark)\b.*\b(done|complete|finished)\b/.test(lower))
+    return "update_status";
+
+  // Delete intent
+  if (/\b(delete|remove|trash|discard|get rid of)\b/.test(lower) && !/\b(add|create|new|make)\b/.test(lower))
+    return "delete_task";
+
+  // Progress update intent
+  if (/\b(progress|percent|%)\b/.test(lower) && /\b(\d+)\b/.test(lower))
+    return "update_progress";
+  if (/\b(set|update|change)\b.*\b(progress|percent)\b/.test(lower))
+    return "update_progress";
+
+  // Move task type (routine <-> on demand)
+  if (/\b(move|change|switch|convert)\b.*\b(to|into)\b.*\b(routine|on\s*demand|ondemand)\b/.test(lower))
+    return "move_type";
+
+  // Edit/update task fields
+  if (/\b(edit|rename|update|change)\b.*\b(title|name|priority|deadline|section)\b/.test(lower))
+    return "edit_task";
 
   // Add task intent
   if (/\b(add|create|new|make|schedule|set up|plan|i need to|i have to|i want to|i should|remind me|can you add|please add)\b/.test(lower))
@@ -188,6 +251,131 @@ export function guessSection(text, sections) {
     }
   }
 
+  return null;
+}
+
+/** Normalize text for comparison — collapse spaces, remove special chars */
+function normalize(str) {
+  return str.toLowerCase().replace(/[^a-z0-9]/g, "");
+}
+
+/** Fuzzy-match a task by name from a sentence */
+export function findTaskInText(text, tasks) {
+  const lower = text.toLowerCase();
+  const active = tasks.filter(t => t.status !== "Done" && t.status !== "Done Late");
+  if (active.length === 0) return null;
+
+  // ── Strategy 1: Exact title match in the raw text ─────────────────────
+  const exactInText = active.find(t => lower.includes(t.title.toLowerCase()));
+  if (exactInText) return exactInText;
+
+  // ── Strategy 2: Normalized contains (handles "pushups" vs "push ups") ─
+  const normText = normalize(text);
+  const normMatch = active.find(t => {
+    const normTitle = normalize(t.title);
+    return normText.includes(normTitle) || normTitle.includes(normText.replace(/task/g, "").trim());
+  });
+  if (normMatch) return normMatch;
+
+  // ── Strategy 3: Strip command words, then match ───────────────────────
+  const cleaned = lower
+    .replace(/\b(can you|please|push|move|set|mark|change|update|switch|start|begin|delete|remove|the|a|an|task|status|to|as|its?|of|it|that|this|i want|i need|want to|need to)\b/gi, "")
+    .replace(/\b(in\s*progress|inprogress|not started|done|complete|finished|working|started)\b/gi, "")
+    .replace(/\b(routine|on\s*demand|ondemand)\b/gi, "")
+    .replace(/\b(progress|percent|%)\b/gi, "")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  if (cleaned) {
+    // Exact on cleaned
+    const exactCleaned = active.find(t => t.title.toLowerCase() === cleaned);
+    if (exactCleaned) return exactCleaned;
+
+    // Cleaned contained in title or vice versa
+    const containsCleaned = active.find(t =>
+      cleaned.includes(t.title.toLowerCase()) || t.title.toLowerCase().includes(cleaned)
+    );
+    if (containsCleaned) return containsCleaned;
+
+    // Normalized cleaned match
+    const normCleaned = normalize(cleaned);
+    if (normCleaned.length >= 3) {
+      const normCleanedMatch = active.find(t => {
+        const normTitle = normalize(t.title);
+        return normTitle.includes(normCleaned) || normCleaned.includes(normTitle);
+      });
+      if (normCleanedMatch) return normCleanedMatch;
+    }
+  }
+
+  // ── Strategy 4: Score every task by multiple signals ──────────────────
+  const scored = active.map(t => {
+    const titleLower = t.title.toLowerCase();
+    const titleNorm = normalize(t.title);
+    const titleWords = titleLower.split(/\s+/).filter(w => w.length > 1);
+    const inputWords = lower.split(/\s+/).filter(w => w.length > 1);
+    let score = 0;
+
+    // (a) How many title words appear in the user's text?
+    const wordHits = titleWords.filter(w => lower.includes(w)).length;
+    if (titleWords.length > 0) score += (wordHits / titleWords.length) * 40;
+
+    // (b) How many user input words appear in the title?
+    const reverseHits = inputWords.filter(w => titleLower.includes(w)).length;
+    if (inputWords.length > 0) score += (reverseHits / inputWords.length) * 20;
+
+    // (c) Normalized substring match (handles concatenated words)
+    if (titleNorm.includes(normText.replace(/[^a-z0-9]/g, "")) ||
+        normText.includes(titleNorm)) {
+      score += 30;
+    }
+
+    // (d) Any individual user word is a substring of any title word (or vice versa)
+    //     e.g. "pushups" contains "push" and "ups" from "push ups"
+    const substringHits = titleWords.filter(tw =>
+      inputWords.some(iw => iw.includes(tw) || tw.includes(iw))
+    ).length;
+    if (titleWords.length > 0) score += (substringHits / titleWords.length) * 25;
+
+    // (e) Levenshtein-like: check if any input word is very close to any title word
+    const closeHits = titleWords.filter(tw =>
+      inputWords.some(iw => {
+        if (tw.length < 3 || iw.length < 3) return false;
+        // One is a prefix of the other (handles plurals, typos)
+        return tw.startsWith(iw.slice(0, 3)) || iw.startsWith(tw.slice(0, 3));
+      })
+    ).length;
+    if (titleWords.length > 0) score += (closeHits / titleWords.length) * 10;
+
+    return { task: t, score };
+  });
+
+  scored.sort((a, b) => b.score - a.score);
+
+  // Return the best match if it scores above threshold
+  if (scored[0] && scored[0].score >= 25) {
+    return scored[0].task;
+  }
+
+  return null;
+}
+
+/** Extract target status from text */
+export function parseTargetStatus(text) {
+  const lower = text.toLowerCase();
+  if (/\b(in\s*progress|inprogress|started|working|start|begin)\b/.test(lower)) return "In Progress";
+  if (/\b(done|complete|finished|mark done|mark complete)\b/.test(lower)) return "Done";
+  if (/\b(not started|reset|restart)\b/.test(lower)) return "Not Started";
+  return null;
+}
+
+/** Extract a percentage number from text */
+export function parseProgress(text) {
+  const match = text.match(/(\d+)\s*(%|percent)?/);
+  if (match) {
+    const num = parseInt(match[1]);
+    if (num >= 0 && num <= 100) return num;
+  }
   return null;
 }
 
@@ -265,12 +453,32 @@ export function processMessage(userText, conv, context) {
       return reply(conv,
         "Here's what I can do:\n\n" +
         "• **Add a task** — just tell me what you need to do\n" +
+        "• **Start a task** — e.g. \"start pushups\" or \"move X to in progress\"\n" +
+        "• **Mark done** — e.g. \"mark pushups done\" or \"complete X\"\n" +
+        "• **Delete a task** — e.g. \"delete pushups\"\n" +
+        "• **Update progress** — e.g. \"set pushups to 50%\"\n" +
+        "• **Change type** — e.g. \"move X to routine\"\n" +
         "• **Show today's tasks** — see what's scheduled\n" +
         "• **Summary** — overview of your workload\n" +
         "• **Check overdue** — find behind-schedule tasks\n\n" +
-        "You can type naturally — I'll figure out the priority, dates, and section!",
+        "You can type naturally — I'll figure out what you mean!",
         ["Add a task", "Today's tasks", "Summary"]
       );
+
+    case "update_status":
+      return handleUpdateStatus(text, conv, context);
+
+    case "delete_task":
+      return handleDeleteTask(text, conv, context);
+
+    case "update_progress":
+      return handleUpdateProgress(text, conv, context);
+
+    case "move_type":
+      return handleMoveType(text, conv, context);
+
+    case "edit_task":
+      return handleEditTask(text, conv, context);
 
     case "view_tasks":
       return handleViewTasks(text, conv, context);
@@ -288,7 +496,7 @@ export function processMessage(userText, conv, context) {
         return startTaskCreation(text, conv, context);
       }
       return reply(conv,
-        "I'm not sure what you mean. You can:\n• Tell me a task to add\n• Ask about today's schedule\n• Get a summary",
+        "I'm not sure what you mean. You can:\n• Tell me a task to add\n• Ask to start/complete a task\n• Ask about today's schedule\n• Get a summary",
         ["Add a task", "Today's tasks", "Summary"]
       );
   }
@@ -395,6 +603,204 @@ function handleSummary(conv, context) {
   return reply(conv, msg, ["Add a task", "Today's tasks", "Show overdue"]);
 }
 
+// ── Task Management Handlers ────────────────────────────────────────────────
+
+function handleUpdateStatus(text, conv, context) {
+  const { tasks } = context;
+  const active = tasks.filter(t => t.status !== "Done" && t.status !== "Done Late");
+  const task = findTaskInText(text, tasks);
+  const targetStatus = parseTargetStatus(text);
+
+  if (!task && active.length === 0) {
+    return reply(conv, "You don't have any active tasks to update.", ["Add a task", "Summary"]);
+  }
+
+  if (!task) {
+    // Couldn't identify which task — ask
+    conv.state = "collecting";
+    conv.pendingField = "status_task_pick";
+    conv.draft = { targetStatus };
+    const taskNames = active.slice(0, 8).map(t => t.title);
+    return reply(conv,
+      "Which task do you want to update? Here are your active tasks:",
+      taskNames
+    );
+  }
+
+  if (!targetStatus) {
+    // Found the task but don't know the target status
+    conv.state = "collecting";
+    conv.pendingField = "status_pick";
+    conv.draft = { taskId: task.id, taskTitle: task.title };
+    return reply(conv,
+      `What status should I set **"${task.title}"** to?`,
+      ["▶️ In Progress", "✅ Done", "⏸️ Not Started"]
+    );
+  }
+
+  // We have both task and target status — execute
+  const today = new Date().toISOString().split("T")[0];
+  let updatedTask = { ...task, status: targetStatus };
+  if (targetStatus === "Done") {
+    const late = task.deadlineDate && task.deadlineDate < today;
+    updatedTask = { ...task, status: late ? "Done Late" : "Done", completedAt: today, progress: 100 };
+  } else if (targetStatus === "In Progress") {
+    updatedTask = { ...task, status: "In Progress", progress: task.progress || 0 };
+  } else if (targetStatus === "Not Started") {
+    updatedTask = { ...task, status: "Not Started", progress: 0 };
+  }
+
+  return reply(conv,
+    `✅ Done! **"${task.title}"** is now **${updatedTask.status}**.`,
+    ["Add a task", "Show today's tasks", "Summary"],
+    { type: "update_task", task: updatedTask }
+  );
+}
+
+function handleDeleteTask(text, conv, context) {
+  const { tasks } = context;
+  const active = tasks.filter(t => t.status !== "Done" && t.status !== "Done Late");
+  const task = findTaskInText(text, tasks);
+
+  if (!task && active.length === 0) {
+    return reply(conv, "You don't have any active tasks to delete.", ["Add a task", "Summary"]);
+  }
+
+  if (!task) {
+    conv.state = "collecting";
+    conv.pendingField = "delete_task_pick";
+    conv.draft = {};
+    const taskNames = active.slice(0, 8).map(t => t.title);
+    return reply(conv,
+      "Which task should I delete?",
+      taskNames
+    );
+  }
+
+  // Confirm deletion
+  conv.state = "collecting";
+  conv.pendingField = "delete_confirm";
+  conv.draft = { taskId: task.id, taskTitle: task.title };
+  return reply(conv,
+    `⚠️ Are you sure you want to delete **"${task.title}"**? This can't be undone.`,
+    ["Yes, delete it", "No, keep it"]
+  );
+}
+
+function handleUpdateProgress(text, conv, context) {
+  const { tasks } = context;
+  const active = tasks.filter(t => t.status !== "Done" && t.status !== "Done Late");
+  const task = findTaskInText(text, tasks);
+  const progress = parseProgress(text);
+
+  if (!task && active.length === 0) {
+    return reply(conv, "You don't have any active tasks to update progress on.", ["Add a task", "Summary"]);
+  }
+
+  if (!task) {
+    conv.state = "collecting";
+    conv.pendingField = "progress_task_pick";
+    conv.draft = { progress };
+    const taskNames = active.slice(0, 8).map(t => t.title);
+    return reply(conv,
+      "Which task's progress do you want to update?",
+      taskNames
+    );
+  }
+
+  if (progress === null) {
+    conv.state = "collecting";
+    conv.pendingField = "progress_value";
+    conv.draft = { taskId: task.id, taskTitle: task.title };
+    return reply(conv,
+      `What percentage should I set **"${task.title}"** progress to?`,
+      ["25%", "50%", "75%", "100%"]
+    );
+  }
+
+  // Execute progress update
+  const today = new Date().toISOString().split("T")[0];
+  let updatedTask;
+  if (progress === 100) {
+    const late = task.deadlineDate && task.deadlineDate < today;
+    updatedTask = { ...task, progress: 100, status: late ? "Done Late" : "Done", completedAt: today };
+  } else {
+    updatedTask = { ...task, progress, status: progress > 0 ? "In Progress" : task.status };
+  }
+
+  return reply(conv,
+    `📈 **"${task.title}"** progress updated to **${progress}%**${progress === 100 ? " — task completed! 🎉" : "."}`,
+    ["Add a task", "Show today's tasks", "Summary"],
+    { type: "update_task", task: updatedTask }
+  );
+}
+
+function handleMoveType(text, conv, context) {
+  const { tasks } = context;
+  const task = findTaskInText(text, tasks);
+  const lower = text.toLowerCase();
+
+  if (!task) {
+    const active = tasks.filter(t => t.status !== "Done" && t.status !== "Done Late");
+    if (active.length === 0) return reply(conv, "You don't have any active tasks.", ["Add a task"]);
+    conv.state = "collecting";
+    conv.pendingField = "movetype_task_pick";
+    conv.draft = {};
+    return reply(conv, "Which task do you want to change the type of?", active.slice(0, 8).map(t => t.title));
+  }
+
+  const newType = /\broutine\b/.test(lower) ? "routine" : "ondemand";
+  const updatedTask = { ...task, taskType: newType };
+  const label = newType === "routine" ? "🔁 Routine" : "⚡ On Demand";
+
+  return reply(conv,
+    `✅ **"${task.title}"** is now **${label}**.`,
+    ["Add a task", "Show today's tasks", "Summary"],
+    { type: "update_task", task: updatedTask }
+  );
+}
+
+function handleEditTask(text, conv, context) {
+  const { tasks } = context;
+  const active = tasks.filter(t => t.status !== "Done" && t.status !== "Done Late");
+  const task = findTaskInText(text, tasks);
+  const lower = text.toLowerCase();
+
+  if (!task) {
+    if (active.length === 0) return reply(conv, "You don't have any active tasks to edit.", ["Add a task"]);
+    conv.state = "collecting";
+    conv.pendingField = "edit_task_pick";
+    conv.draft = {};
+    return reply(conv, "Which task do you want to edit?", active.slice(0, 8).map(t => t.title));
+  }
+
+  // Determine what field to edit
+  if (/\bpriority\b/.test(lower)) {
+    conv.state = "collecting";
+    conv.pendingField = "edit_priority";
+    conv.draft = { taskId: task.id, taskTitle: task.title, task };
+    return reply(conv, `What priority should **"${task.title}"** have?`, ["🔴 Do First", "🟡 Schedule", "🔵 Delegate", "⚪ Drop"]);
+  }
+  if (/\b(title|name|rename)\b/.test(lower)) {
+    conv.state = "collecting";
+    conv.pendingField = "edit_title";
+    conv.draft = { taskId: task.id, taskTitle: task.title, task };
+    return reply(conv, `What should the new title be for **"${task.title}"**?`);
+  }
+  if (/\bdeadline\b|\bdue\b/.test(lower)) {
+    conv.state = "collecting";
+    conv.pendingField = "edit_deadline";
+    conv.draft = { taskId: task.id, taskTitle: task.title, task };
+    return reply(conv, `When should **"${task.title}"** be due?`, ["Tomorrow", "Next Friday", "End of month", "No deadline"]);
+  }
+
+  // Generic edit — ask what to change
+  conv.state = "collecting";
+  conv.pendingField = "edit_field_pick";
+  conv.draft = { taskId: task.id, taskTitle: task.title, task };
+  return reply(conv, `What do you want to change about **"${task.title}"**?`, ["Title", "Priority", "Deadline", "Status", "Progress"]);
+}
+
 // ── Task Creation Flow ──────────────────────────────────────────────────────
 
 function startTaskCreation(text, conv, context) {
@@ -430,6 +836,8 @@ function startTaskCreation(text, conv, context) {
     startDate: today,
     deadlineDate: deadline || "",
     taskType: taskType || "ondemand",
+    routineStartTime: null,
+    routineEndTime: null,
     notes: "",
     tags: [],
   };
@@ -493,8 +901,26 @@ function askNextField(conv, context, prefixMsg = "") {
     );
   }
 
-  // 3. Need deadline?
-  if (!draft.deadlineDate) {
+  // 3. Routine tasks → ask for start time & end time instead of deadline
+  if (draft.taskType === "routine") {
+    if (!draft.routineStartTime) {
+      conv.pendingField = "routineStartTime";
+      return reply(conv,
+        prefixMsg + "What time does this routine start? (e.g. *9 AM*, *morning*, *14:30*)",
+        ["9:00 AM", "10:00 AM", "Morning", "Noon"]
+      );
+    }
+    if (!draft.routineEndTime) {
+      conv.pendingField = "routineEndTime";
+      return reply(conv,
+        prefixMsg + "What time does it end? (e.g. *10 AM*, *5 PM*, *end of day*)",
+        ["10:00 AM", "11:00 AM", "Noon", "5:00 PM", "End of day"]
+      );
+    }
+  }
+
+  // 4. Non-routine tasks → ask for deadline
+  if (!draft.deadlineDate && draft.taskType !== "routine") {
     conv.pendingField = "deadline";
     return reply(conv,
       prefixMsg + "When is this due? (e.g. *tomorrow*, *Friday*, *end of week*, or *skip*)",
@@ -507,8 +933,213 @@ function askNextField(conv, context, prefixMsg = "") {
 }
 
 function handleCollection(text, conv, context) {
-  const { sections } = context;
+  const { sections, tasks } = context;
   const field = conv.pendingField;
+
+  // ── Task management fields ──────────────────────────────────────────────
+
+  if (field === "status_task_pick") {
+    const active = tasks.filter(t => t.status !== "Done" && t.status !== "Done Late");
+    const task = findTaskInText(text, tasks) || active.find(t => t.title.toLowerCase() === text.toLowerCase().trim());
+    if (!task) return reply(conv, "I couldn't find that task. Please pick from the list:", active.slice(0, 8).map(t => t.title));
+    conv.pendingField = "status_pick";
+    conv.draft = { ...conv.draft, taskId: task.id, taskTitle: task.title };
+    const targetStatus = conv.draft.targetStatus;
+    if (targetStatus) {
+      // Already know the target — execute
+      conv.state = "idle";
+      conv.pendingField = null;
+      const today = new Date().toISOString().split("T")[0];
+      let updatedTask = { ...task, status: targetStatus };
+      if (targetStatus === "Done") {
+        const late = task.deadlineDate && task.deadlineDate < today;
+        updatedTask = { ...task, status: late ? "Done Late" : "Done", completedAt: today, progress: 100 };
+      } else if (targetStatus === "In Progress") {
+        updatedTask = { ...task, status: "In Progress", progress: task.progress || 0 };
+      } else if (targetStatus === "Not Started") {
+        updatedTask = { ...task, status: "Not Started", progress: 0 };
+      }
+      conv.draft = null;
+      return reply(conv, `✅ Done! **"${task.title}"** is now **${updatedTask.status}**.`, ["Add a task", "Show today's tasks", "Summary"], { type: "update_task", task: updatedTask });
+    }
+    return reply(conv, `What status should I set **"${task.title}"** to?`, ["▶️ In Progress", "✅ Done", "⏸️ Not Started"]);
+  }
+
+  if (field === "status_pick") {
+    const targetStatus = parseTargetStatus(text);
+    if (!targetStatus) return reply(conv, "Please pick a status:", ["▶️ In Progress", "✅ Done", "⏸️ Not Started"]);
+    const task = tasks.find(t => t.id === conv.draft.taskId);
+    if (!task) { conv.state = "idle"; conv.draft = null; conv.pendingField = null; return reply(conv, "Task not found. It may have been deleted.", ["Add a task"]); }
+    const today = new Date().toISOString().split("T")[0];
+    let updatedTask;
+    if (targetStatus === "Done") {
+      const late = task.deadlineDate && task.deadlineDate < today;
+      updatedTask = { ...task, status: late ? "Done Late" : "Done", completedAt: today, progress: 100 };
+    } else if (targetStatus === "In Progress") {
+      updatedTask = { ...task, status: "In Progress", progress: task.progress || 0 };
+    } else {
+      updatedTask = { ...task, status: "Not Started", progress: 0 };
+    }
+    conv.state = "idle"; conv.draft = null; conv.pendingField = null;
+    return reply(conv, `✅ Done! **"${task.title}"** is now **${updatedTask.status}**.`, ["Add a task", "Show today's tasks", "Summary"], { type: "update_task", task: updatedTask });
+  }
+
+  if (field === "delete_task_pick") {
+    const active = tasks.filter(t => t.status !== "Done" && t.status !== "Done Late");
+    const task = findTaskInText(text, tasks) || active.find(t => t.title.toLowerCase() === text.toLowerCase().trim());
+    if (!task) return reply(conv, "I couldn't find that task. Please pick one:", active.slice(0, 8).map(t => t.title));
+    conv.pendingField = "delete_confirm";
+    conv.draft = { taskId: task.id, taskTitle: task.title };
+    return reply(conv, `⚠️ Are you sure you want to delete **"${task.title}"**?`, ["Yes, delete it", "No, keep it"]);
+  }
+
+  if (field === "delete_confirm") {
+    const lower = text.toLowerCase();
+    if (/\b(yes|yep|yeah|sure|ok|do it|delete|confirm)\b/.test(lower)) {
+      const taskId = conv.draft.taskId;
+      const title = conv.draft.taskTitle;
+      conv.state = "idle"; conv.draft = null; conv.pendingField = null;
+      return reply(conv, `🗑️ **"${title}"** has been deleted.`, ["Add a task", "Show today's tasks"], { type: "delete_task", taskId });
+    }
+    conv.state = "idle"; conv.draft = null; conv.pendingField = null;
+    return reply(conv, "OK, keeping the task. What else can I help with?", ["Add a task", "Today's tasks"]);
+  }
+
+  if (field === "progress_task_pick") {
+    const active = tasks.filter(t => t.status !== "Done" && t.status !== "Done Late");
+    const task = findTaskInText(text, tasks) || active.find(t => t.title.toLowerCase() === text.toLowerCase().trim());
+    if (!task) return reply(conv, "I couldn't find that task. Please pick one:", active.slice(0, 8).map(t => t.title));
+    const progress = conv.draft.progress;
+    if (progress !== null && progress !== undefined) {
+      const today = new Date().toISOString().split("T")[0];
+      let updatedTask;
+      if (progress === 100) {
+        const late = task.deadlineDate && task.deadlineDate < today;
+        updatedTask = { ...task, progress: 100, status: late ? "Done Late" : "Done", completedAt: today };
+      } else {
+        updatedTask = { ...task, progress, status: progress > 0 ? "In Progress" : task.status };
+      }
+      conv.state = "idle"; conv.draft = null; conv.pendingField = null;
+      return reply(conv, `📈 **"${task.title}"** progress set to **${progress}%**${progress === 100 ? " — done! 🎉" : "."}`, ["Add a task", "Summary"], { type: "update_task", task: updatedTask });
+    }
+    conv.pendingField = "progress_value";
+    conv.draft = { taskId: task.id, taskTitle: task.title };
+    return reply(conv, `What percentage should I set **"${task.title}"** progress to?`, ["25%", "50%", "75%", "100%"]);
+  }
+
+  if (field === "progress_value") {
+    const progress = parseProgress(text);
+    if (progress === null) return reply(conv, "Please enter a number between 0 and 100:", ["25%", "50%", "75%", "100%"]);
+    const task = tasks.find(t => t.id === conv.draft.taskId);
+    if (!task) { conv.state = "idle"; conv.draft = null; conv.pendingField = null; return reply(conv, "Task not found.", ["Add a task"]); }
+    const today = new Date().toISOString().split("T")[0];
+    let updatedTask;
+    if (progress === 100) {
+      const late = task.deadlineDate && task.deadlineDate < today;
+      updatedTask = { ...task, progress: 100, status: late ? "Done Late" : "Done", completedAt: today };
+    } else {
+      updatedTask = { ...task, progress, status: progress > 0 ? "In Progress" : task.status };
+    }
+    conv.state = "idle"; conv.draft = null; conv.pendingField = null;
+    return reply(conv, `📈 **"${task.title}"** progress set to **${progress}%**${progress === 100 ? " — done! 🎉" : "."}`, ["Add a task", "Summary"], { type: "update_task", task: updatedTask });
+  }
+
+  if (field === "movetype_task_pick") {
+    const active = tasks.filter(t => t.status !== "Done" && t.status !== "Done Late");
+    const task = findTaskInText(text, tasks) || active.find(t => t.title.toLowerCase() === text.toLowerCase().trim());
+    if (!task) return reply(conv, "I couldn't find that task. Please pick one:", active.slice(0, 8).map(t => t.title));
+    const newType = task.taskType === "routine" ? "ondemand" : "routine";
+    const updatedTask = { ...task, taskType: newType };
+    const label = newType === "routine" ? "🔁 Routine" : "⚡ On Demand";
+    conv.state = "idle"; conv.draft = null; conv.pendingField = null;
+    return reply(conv, `✅ **"${task.title}"** is now **${label}**.`, ["Add a task", "Summary"], { type: "update_task", task: updatedTask });
+  }
+
+  if (field === "edit_task_pick") {
+    const active = tasks.filter(t => t.status !== "Done" && t.status !== "Done Late");
+    const task = findTaskInText(text, tasks) || active.find(t => t.title.toLowerCase() === text.toLowerCase().trim());
+    if (!task) return reply(conv, "I couldn't find that task. Please pick one:", active.slice(0, 8).map(t => t.title));
+    conv.pendingField = "edit_field_pick";
+    conv.draft = { taskId: task.id, taskTitle: task.title, task };
+    return reply(conv, `What do you want to change about **"${task.title}"**?`, ["Title", "Priority", "Deadline", "Status", "Progress"]);
+  }
+
+  if (field === "edit_field_pick") {
+    const lower = text.toLowerCase();
+    const task = conv.draft.task || tasks.find(t => t.id === conv.draft.taskId);
+    if (!task) { conv.state = "idle"; conv.draft = null; conv.pendingField = null; return reply(conv, "Task not found.", ["Add a task"]); }
+    if (/\btitle\b|\bname\b/.test(lower)) {
+      conv.pendingField = "edit_title";
+      return reply(conv, `What should the new title be?`);
+    }
+    if (/\bpriority\b/.test(lower)) {
+      conv.pendingField = "edit_priority";
+      return reply(conv, `What priority should it have?`, ["🔴 Do First", "🟡 Schedule", "🔵 Delegate", "⚪ Drop"]);
+    }
+    if (/\bdeadline\b|\bdue\b/.test(lower)) {
+      conv.pendingField = "edit_deadline";
+      return reply(conv, `When should it be due?`, ["Tomorrow", "Next Friday", "End of month", "No deadline"]);
+    }
+    if (/\bstatus\b/.test(lower)) {
+      conv.pendingField = "status_pick";
+      conv.draft = { taskId: task.id, taskTitle: task.title };
+      return reply(conv, `What status?`, ["▶️ In Progress", "✅ Done", "⏸️ Not Started"]);
+    }
+    if (/\bprogress\b/.test(lower)) {
+      conv.pendingField = "progress_value";
+      conv.draft = { taskId: task.id, taskTitle: task.title };
+      return reply(conv, `What percentage?`, ["25%", "50%", "75%", "100%"]);
+    }
+    return reply(conv, "Pick what to change:", ["Title", "Priority", "Deadline", "Status", "Progress"]);
+  }
+
+  if (field === "edit_title") {
+    const task = conv.draft.task || tasks.find(t => t.id === conv.draft.taskId);
+    if (!task) { conv.state = "idle"; conv.draft = null; conv.pendingField = null; return reply(conv, "Task not found.", ["Add a task"]); }
+    const newTitle = text.trim();
+    if (!newTitle) return reply(conv, "Please enter a new title:");
+    const updatedTask = { ...task, title: newTitle };
+    conv.state = "idle"; conv.draft = null; conv.pendingField = null;
+    return reply(conv, `✅ Renamed to **"${newTitle}"**.`, ["Add a task", "Summary"], { type: "update_task", task: updatedTask });
+  }
+
+  if (field === "edit_priority") {
+    const task = conv.draft.task || tasks.find(t => t.id === conv.draft.taskId);
+    if (!task) { conv.state = "idle"; conv.draft = null; conv.pendingField = null; return reply(conv, "Task not found.", ["Add a task"]); }
+    const parsed = parsePriority(text);
+    const buttonMap = { "do first": "HH", "schedule": "HL", "delegate": "LH", "drop": "LL" };
+    const cleaned = text.replace(/[🔴🟡🔵⚪]/g, "").trim().toLowerCase();
+    const priority = parsed || buttonMap[cleaned] || null;
+    if (!priority) return reply(conv, "Please pick a priority:", ["🔴 Do First", "🟡 Schedule", "🔵 Delegate", "⚪ Drop"]);
+    const updatedTask = { ...task, priority };
+    const label = { HH: "🔴 Do First", HL: "🟡 Schedule", LH: "🔵 Delegate", LL: "⚪ Drop" }[priority];
+    conv.state = "idle"; conv.draft = null; conv.pendingField = null;
+    return reply(conv, `✅ **"${task.title}"** priority set to **${label}**.`, ["Add a task", "Summary"], { type: "update_task", task: updatedTask });
+  }
+
+  if (field === "edit_deadline") {
+    const task = conv.draft.task || tasks.find(t => t.id === conv.draft.taskId);
+    if (!task) { conv.state = "idle"; conv.draft = null; conv.pendingField = null; return reply(conv, "Task not found.", ["Add a task"]); }
+    const lower = text.toLowerCase().trim();
+    if (/\b(no|none|skip|no deadline|remove)\b/.test(lower)) {
+      const updatedTask = { ...task, deadlineDate: "" };
+      conv.state = "idle"; conv.draft = null; conv.pendingField = null;
+      return reply(conv, `✅ Deadline removed from **"${task.title}"**.`, ["Add a task", "Summary"], { type: "update_task", task: updatedTask });
+    }
+    const date = parseDate(text);
+    if (!date) return reply(conv, "I couldn't understand that date. Try *tomorrow*, *next Friday*, *end of month*, or *no deadline*.", ["Tomorrow", "Next Friday", "End of month", "No deadline"]);
+    const updatedTask = { ...task, deadlineDate: date };
+    conv.state = "idle"; conv.draft = null; conv.pendingField = null;
+    return reply(conv, `✅ **"${task.title}"** deadline set to **${date}**.`, ["Add a task", "Summary"], { type: "update_task", task: updatedTask });
+  }
+
+  // ── Task creation fields ────────────────────────────────────────────────
+
+  if (field === "title_change") {
+    conv.draft.title = text.trim();
+    conv.pendingField = null;
+    return showConfirmation(conv, context, `Title updated to **"${conv.draft.title}"**.\n\n`);
+  }
 
   if (field === "section") {
     // Try to match section
@@ -563,6 +1194,30 @@ function handleCollection(text, conv, context) {
     return reply(conv, "I couldn't understand that date. Try something like *tomorrow*, *next Friday*, *June 25*, or *skip*.", ["Tomorrow", "Next Friday", "End of month", "No deadline"]);
   }
 
+  if (field === "routineStartTime") {
+    const time = parseTime(text);
+    if (time) {
+      conv.draft.routineStartTime = time;
+      conv.pendingField = null;
+      return askNextField(conv, context, `🕐 Start time: **${time}**\n\n`);
+    }
+    return reply(conv, "I couldn't understand that time. Try something like *9 AM*, *9:30*, *morning*, or *14:00*.", ["9:00 AM", "10:00 AM", "Morning", "Noon"]);
+  }
+
+  if (field === "routineEndTime") {
+    const time = parseTime(text);
+    if (time) {
+      // Validate end > start
+      if (conv.draft.routineStartTime && time <= conv.draft.routineStartTime) {
+        return reply(conv, `⚠️ End time must be after start time (**${conv.draft.routineStartTime}**). Try again:`, ["10:00 AM", "11:00 AM", "Noon", "5:00 PM"]);
+      }
+      conv.draft.routineEndTime = time;
+      conv.pendingField = null;
+      return askNextField(conv, context, `🕐 End time: **${time}**\n\n`);
+    }
+    return reply(conv, "I couldn't understand that time. Try something like *10 AM*, *5 PM*, *end of day*, or *17:00*.", ["10:00 AM", "Noon", "5:00 PM", "End of day"]);
+  }
+
   // Fallback
   return askNextField(conv, context);
 }
@@ -590,8 +1245,13 @@ function showConfirmation(conv, context, prefixMsg = "") {
   msg += `📝 **${draft.title}**\n`;
   msg += `📁 Section: ${draft.sectionName}\n`;
   msg += `${priLabel}\n`;
-  msg += `📅 Start: ${draft.startDate}\n`;
-  msg += draft.deadlineDate ? `📅 Deadline: ${draft.deadlineDate}\n` : `📅 Deadline: None\n`;
+  if (draft.taskType === "routine") {
+    msg += `🕐 Start time: ${draft.routineStartTime}\n`;
+    msg += `🕐 End time: ${draft.routineEndTime}\n`;
+  } else {
+    msg += `📅 Start: ${draft.startDate}\n`;
+    msg += draft.deadlineDate ? `📅 Deadline: ${draft.deadlineDate}\n` : `📅 Deadline: None\n`;
+  }
   msg += `${typeLabel}\n`;
   msg += workloadWarning;
   msg += "\n\nShall I create this task?";
@@ -612,6 +1272,8 @@ function handleConfirmation(text, conv, context) {
       startDate: draft.startDate,
       deadlineDate: draft.deadlineDate,
       taskType: draft.taskType,
+      routineStartTime: draft.routineStartTime || null,
+      routineEndTime: draft.routineEndTime || null,
       notes: draft.notes,
       tags: draft.tags,
     };
@@ -629,7 +1291,10 @@ function handleConfirmation(text, conv, context) {
 
   if (/\b(change|edit|modify|update|✏️)\b/.test(lower)) {
     conv.state = "collecting";
-    return reply(conv, "What would you like to change?", ["Title", "Section", "Priority", "Deadline", "Task type"]);
+    const changeOptions = conv.draft?.taskType === "routine"
+      ? ["Title", "Section", "Priority", "Start time", "End time", "Task type"]
+      : ["Title", "Section", "Priority", "Deadline", "Task type"];
+    return reply(conv, "What would you like to change?", changeOptions);
   }
 
   // Handle specific field changes
@@ -654,6 +1319,18 @@ function handleConfirmation(text, conv, context) {
     conv.state = "collecting";
     conv.pendingField = "deadline";
     return reply(conv, "When is this due?", ["Tomorrow", "Next Friday", "End of month", "No deadline"]);
+  }
+  if (/\bstart time\b/.test(lower)) {
+    conv.draft.routineStartTime = null;
+    conv.state = "collecting";
+    conv.pendingField = "routineStartTime";
+    return reply(conv, "What time should it start?", ["9:00 AM", "10:00 AM", "Morning", "Noon"]);
+  }
+  if (/\bend time\b/.test(lower)) {
+    conv.draft.routineEndTime = null;
+    conv.state = "collecting";
+    conv.pendingField = "routineEndTime";
+    return reply(conv, "What time should it end?", ["10:00 AM", "Noon", "5:00 PM", "End of day"]);
   }
   if (/\btype\b/.test(lower)) {
     conv.draft.taskType = conv.draft.taskType === "routine" ? "ondemand" : "routine";

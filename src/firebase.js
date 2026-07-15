@@ -15,7 +15,6 @@ const app      = initializeApp(firebaseConfig);
 const auth     = getAuth(app);
 const provider = new GoogleAuthProvider();
 
-provider.addScope("https://www.googleapis.com/auth/drive.appdata");
-provider.setCustomParameters({ access_type: "offline", prompt: "consent" });
+provider.setCustomParameters({ prompt: "select_account" });
 
 export { auth, provider };

@@ -1,14 +1,13 @@
 import { useCallback, useEffect, useState } from "react";
 import { Routes, Route, useNavigate, useParams, Navigate, useLocation } from "react-router-dom";
 import {
-  onAuthStateChanged,
+  onIdTokenChanged,
   signInWithPopup,
   signOut,
-  GoogleAuthProvider,
 } from "firebase/auth";
 import { auth, provider } from "../firebase";
 
-import useDriveSync from "../hooks/useDriveSync";
+import useDataSync from "../hooks/useDataSync";
 import useToast     from "../hooks/useToast";
 
 import LoginScreen     from "../components/auth/LoginScreen";
@@ -22,16 +21,11 @@ import AIChatAssistant  from "../components/chat/AIChatAssistant";
 import Toast           from "../components/common/Toast";
 
 import { uid, todayStr, toSlug } from "../utils/helpers";
-import { registerTokenRefresher } from "../utils/driveApi";
 import { DEFAULT_BLOCKED_TIMES, DEFAULT_WORK_START, DEFAULT_WORK_END } from "../utils/scheduleHelpers";
 import { useTheme } from "../contexts/ThemeContext";
 
-const TOKEN_KEY  = "flow_drive_token";
 const BLOCKED_TIMES_KEY = "flow_blocked_times";
 const WORK_HOURS_KEY = "flow_work_hours";
-const saveToken  = (t) => localStorage.setItem(TOKEN_KEY, t);
-const loadToken  = ()  => localStorage.getItem(TOKEN_KEY) || null;
-const clearToken = ()  => localStorage.removeItem(TOKEN_KEY);
 
 const loadBlockedTimes = () => {
   try {
@@ -78,7 +72,7 @@ const saveWorkHours = (start, end) => {
 export default function RootApp() {
   const { theme } = useTheme();
   const [user,        setUser]        = useState(null);
-  const [accessToken, setAccessToken] = useState(loadToken);
+  const [idToken,     setIdToken]     = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [blockedTimes, setBlockedTimes] = useState(loadBlockedTimes);
   const [workHours, setWorkHours] = useState(loadWorkHours);
@@ -88,35 +82,23 @@ export default function RootApp() {
   const navigate = useNavigate();
 
   // ── Auth ──────────────────────────────────────────────────────────────────
+  // onIdTokenChanged fires on sign-in, sign-out, and whenever Firebase
+  // auto-refreshes the ID token (roughly every hour) — so idToken is always
+  // kept fresh automatically, with no manual refresh logic needed.
   useEffect(() => {
-    const unsub = onAuthStateChanged(auth, async (firebaseUser) => {
+    const unsub = onIdTokenChanged(auth, async (firebaseUser) => {
       if (!firebaseUser) {
-        clearToken();
         setUser(null);
+        setIdToken(null);
         setAuthLoading(false);
         return;
       }
       setUser(firebaseUser);
-      // Drive token already in session — go straight in, no prompt needed.
-      if (loadToken()) {
-        setAuthLoading(false);
-        return;
-      }
-      // Token is gone (new tab / browser restarted / session expired).
-      // Attempt a silent Google re-auth BEFORE showing anything, so the
-      // user is never interrupted unnecessarily. We keep authLoading=true
-      // for the duration so only the spinner is shown, not a login screen.
       try {
-        const sp = new GoogleAuthProvider();
-        sp.addScope("https://www.googleapis.com/auth/drive.appdata");
-        sp.setCustomParameters({ prompt: "none", access_type: "offline" });
-        const result = await signInWithPopup(auth, sp);
-        const cred   = GoogleAuthProvider.credentialFromResult(result);
-        const token  = cred?.accessToken;
-        if (token) { saveToken(token); setAccessToken(token); }
-      } catch {
-        // Silent re-auth failed (e.g. Google session expired, popup blocked).
-        // accessToken stays null → ReconnectScreen will be shown.
+        const token = await firebaseUser.getIdToken();
+        setIdToken(token);
+      } catch (err) {
+        console.error("Failed to get ID token:", err);
       }
       setAuthLoading(false);
     });
@@ -125,10 +107,9 @@ export default function RootApp() {
 
   const handleSignIn = async () => {
     try {
-      const result     = await signInWithPopup(auth, provider);
-      const googleCred = GoogleAuthProvider.credentialFromResult(result);
-      const token      = googleCred?.accessToken;
-      if (token) { saveToken(token); setAccessToken(token); }
+      const result = await signInWithPopup(auth, provider);
+      const token  = await result.user.getIdToken();
+      setIdToken(token);
       setUser(result.user);
       showToast("Signed in successfully!", "success");
     } catch (err) {
@@ -137,98 +118,17 @@ export default function RootApp() {
     }
   };
 
-  // ── Silent token refresh ─────────────────────────────────────────────────
-  // Called automatically by driveApi whenever a 401 is received.
-  // Uses prompt:"none" so no popup appears — Google issues a new token
-  // silently if the user still has an active Google session.
-  const silentRefresh = useCallback(async () => {
-    try {
-      const silentProvider = new GoogleAuthProvider();
-      silentProvider.addScope("https://www.googleapis.com/auth/drive.appdata");
-      silentProvider.setCustomParameters({ prompt: "none" });
-      const result     = await signInWithPopup(auth, silentProvider);
-      const googleCred = GoogleAuthProvider.credentialFromResult(result);
-      const newToken   = googleCred?.accessToken;
-      if (newToken) {
-        saveToken(newToken);
-        setAccessToken(newToken);
-        return newToken; // driveApi retries with this token
-      }
-    } catch (err) {
-      // Expected when prompt:none can't complete silently (cookie restrictions etc.)
-      // Fall through and return null — driveApi will surface the original error
-      if (err.code !== "auth/cancelled-popup-request" &&
-          err.code !== "auth/popup-closed-by-user" &&
-          err.code !== "auth/popup-blocked") {
-        console.warn("Silent token refresh failed:", err.code || err.message);
-      }
-    }
-    return null;
-  }, []);
-
-  // Register the refresher once on mount so driveApi can call it on 401s
-  useEffect(() => {
-    registerTokenRefresher(silentRefresh);
-  }, [silentRefresh]);
-
-  // Proactively refresh the token every 55 minutes (tokens expire at 60 min).
-  // This runs silently in the background — no popup, no interruption.
-  // We do it proactively so the token is always fresh before Drive calls need it.
-  useEffect(() => {
-    if (!user || !accessToken) return;
-
-    const REFRESH_INTERVAL = 55 * 60 * 1000; // 55 minutes in ms
-
-    const doRefresh = async () => {
-      try {
-        const googleProvider = new GoogleAuthProvider();
-        googleProvider.addScope("https://www.googleapis.com/auth/drive.appdata");
-        googleProvider.setCustomParameters({ prompt: "none" });
-        const result     = await signInWithPopup(auth, googleProvider);
-        const googleCred = GoogleAuthProvider.credentialFromResult(result);
-        const newToken   = googleCred?.accessToken;
-        if (newToken) {
-          saveToken(newToken);
-          setAccessToken(newToken);
-        }
-      } catch (err) {
-        // Silent refresh failed — token will expire but driveApi 401 handler
-        // will attempt recovery on the next Drive call.
-        console.warn("Proactive token refresh failed:", err.code || err.message);
-      }
-    };
-
-    const timer = setInterval(doRefresh, REFRESH_INTERVAL);
-    return () => clearInterval(timer);
-  }, [user, accessToken]);
-
   const handleSignOut = async () => {
-    clearToken();
     await signOut(auth);
     setUser(null);
-    setAccessToken(null);
+    setIdToken(null);
     navigate("/");
     showToast("Signed out.");
   };
 
-  // Called from the sync-error banner — attempts a full re-auth + token fetch
-  const handleReconnect = async () => {
-    try {
-      const result = await signInWithPopup(auth, provider);
-      const cred   = GoogleAuthProvider.credentialFromResult(result);
-      const token  = cred?.accessToken;
-      if (token) { saveToken(token); setAccessToken(token); }
-      setUser(result.user);
-      showToast("Reconnected successfully!", "success");
-    } catch (err) {
-      console.error("Reconnect error:", err);
-      showToast("Reconnect failed. Please try again.", "error");
-    }
-  };
-
-  // ── Drive sync ────────────────────────────────────────────────────────────
+  // ── Data sync (MongoDB via local server) ────────────────────────────────
   const { tasks, sections, setTasks, setSections, syncStatus, scheduleSave } =
-    useDriveSync(accessToken, showToast);
+    useDataSync(idToken, showToast);
 
   // ── Mutation helpers ──────────────────────────────────────────────────────
   const persistTasks = useCallback((newTasks) => {
@@ -333,15 +233,6 @@ export default function RootApp() {
   // ── Loading ───────────────────────────────────────────────────────────────
   if (authLoading) return <Spinner label="Loading…" />;
 
-  if (user && !accessToken) {
-    return (
-      <>
-        <ReconnectScreen user={user} onSignIn={handleSignIn} />
-        <Toast message={toast.msg} type={toast.type} visible={toast.visible} />
-      </>
-    );
-  }
-
   if (!user) {
     return (
       <>
@@ -397,7 +288,6 @@ export default function RootApp() {
           user={user}
           syncStatus={syncStatus}
           onSignOut={handleSignOut}
-          onReconnect={handleReconnect}
           onOpenBlockedTimes={() => setBlockedTimesOpen(true)}
         />
         <Routes>
@@ -428,6 +318,9 @@ export default function RootApp() {
         blockedTimes={blockedTimes}
         workHours={workHours}
         onSave={handleSave}
+        onDelete={handleDelete}
+        onProgress={handleProgress}
+        driveToken={idToken}
       />
       </div>
     </div>
@@ -517,7 +410,7 @@ function CompletedScreenWrapper({ tasks, sections, syncStatus, handleDelete }) {
 // Shared UI pieces
 // ─────────────────────────────────────────────────────────────────────────────
 
-function TopBar({ user, syncStatus, onSignOut, onReconnect, onOpenBlockedTimes }) {
+function TopBar({ user, syncStatus, onSignOut, onOpenBlockedTimes }) {
   const navigate = useNavigate();
   const location = useLocation();
   const { theme, toggle } = useTheme();
@@ -620,21 +513,8 @@ function TopBar({ user, syncStatus, onSignOut, onReconnect, onOpenBlockedTimes }
         }}>
           <span style={{ color: theme.red, fontSize: 13, fontFamily: "'DM Sans',sans-serif", display: "flex", alignItems: "center", gap: 8 }}>
             <span style={{ fontSize: 15 }}>⚠</span>
-            Could not sync with Google Drive. Your changes are saved locally.
+            Could not sync with the server. Your changes are saved locally.
           </span>
-          <button
-            onClick={onReconnect}
-            style={{
-              background: theme.red, color: "#fff", border: "none",
-              borderRadius: 8, padding: "6px 16px", fontSize: 12,
-              fontFamily: "'DM Sans',sans-serif", fontWeight: 700, cursor: "pointer",
-              transition: "opacity 0.15s",
-            }}
-            onMouseEnter={(e) => e.currentTarget.style.opacity = "0.85"}
-            onMouseLeave={(e) => e.currentTarget.style.opacity = "1"}
-          >
-            Reconnect
-          </button>
         </div>
       )}
     </>
@@ -649,176 +529,5 @@ function Spinner({ label }) {
       <style>{`@keyframes spin { to { transform:rotate(360deg) } }`}</style>
       <div style={{ color:theme.textMuted, fontSize:12, fontFamily:"'DM Sans',sans-serif" }}>{label}</div>
     </div>
-  );
-}
-
-function ReconnectScreen({ user, onSignIn }) {
-  const { theme } = useTheme();
-  const [btnHover, setBtnHover] = useState(false);
-  const [visible,  setVisible]  = useState(false);
-
-  useEffect(() => {
-    const t = setTimeout(() => setVisible(true), 60);
-    return () => clearTimeout(t);
-  }, []);
-
-  const avatar = user?.photoURL;
-  const name   = user?.displayName || user?.email || "there";
-  const first  = name.split(" ")[0];
-
-  return (
-    <div style={{
-      minHeight: "100vh",
-      background: theme.bg,
-      fontFamily: "'DM Sans', sans-serif",
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "center",
-      padding: 24,
-      overflow: "hidden",
-      position: "relative",
-    }}>
-      <style>{`
-        @keyframes spin       { to { transform: rotate(360deg) } }
-        @keyframes fadeUp     { from { opacity:0; transform:translateY(20px) } to { opacity:1; transform:translateY(0) } }
-        @keyframes pulse-ring { 0%,100% { opacity:0.15 } 50% { opacity:0.35 } }
-      `}</style>
-
-      {/* Background glow */}
-      <div style={{
-        position: "absolute", top: "30%", left: "50%",
-        transform: "translate(-50%,-50%)",
-        width: 500, height: 500, borderRadius: "50%",
-        background: "radial-gradient(circle, rgba(232,69,69,0.07) 0%, transparent 70%)",
-        pointerEvents: "none",
-      }} />
-
-      {/* Card */}
-      <div style={{
-        position: "relative",
-        background: theme.bgModal,
-        border: "1px solid rgba(255,255,255,0.07)",
-        borderRadius: 24,
-        padding: "48px 40px",
-        maxWidth: 400,
-        width: "100%",
-        textAlign: "center",
-        boxShadow: "0 32px 80px rgba(0,0,0,0.5)",
-        opacity: visible ? 1 : 0,
-        transform: visible ? "translateY(0)" : "translateY(16px)",
-        transition: "opacity 0.5s ease, transform 0.5s ease",
-      }}>
-
-        {/* Pulsing ring + avatar */}
-        <div style={{ position: "relative", width: 72, height: 72, margin: "0 auto 24px" }}>
-          <div style={{
-            position: "absolute", inset: -8,
-            borderRadius: "50%",
-            border: "1px solid rgba(232,69,69,0.3)",
-            animation: "pulse-ring 2.5s ease-in-out infinite",
-          }} />
-          <div style={{
-            position: "absolute", inset: -16,
-            borderRadius: "50%",
-            border: "1px solid rgba(232,69,69,0.12)",
-            animation: "pulse-ring 2.5s ease-in-out infinite 0.4s",
-          }} />
-          {avatar ? (
-            <img src={avatar} alt={name} style={{
-              width: 72, height: 72, borderRadius: "50%",
-              border: "2px solid rgba(232,69,69,0.4)",
-              display: "block",
-            }} />
-          ) : (
-            <div style={{
-              width: 72, height: 72, borderRadius: "50%",
-              background: "linear-gradient(135deg, #E84545, #c43030)",
-              display: "flex", alignItems: "center", justifyContent: "center",
-              fontSize: 28, color: "#fff", fontWeight: 700,
-              border: "2px solid rgba(232,69,69,0.4)",
-            }}>
-              {first[0].toUpperCase()}
-            </div>
-          )}
-        </div>
-
-        {/* Text */}
-        <div style={{
-          fontFamily: "'DM Serif Display', serif",
-          fontSize: 26, color: theme.text,
-          marginBottom: 10, letterSpacing: "-0.3px",
-        }}>
-          Welcome back, {first}
-        </div>
-        <p style={{
-          color: theme.textMuted, fontSize: 13, lineHeight: 1.7,
-          marginBottom: 32, maxWidth: 280, margin: "0 auto 32px",
-        }}>
-          Your Drive connection expired. One quick sign-in and you&apos;ll be right back where you left off.
-        </p>
-
-        {/* Divider */}
-        <div style={{
-          display: "flex", alignItems: "center", gap: 12, marginBottom: 28,
-        }}>
-          <div style={{ flex: 1, height: 1, background: "rgba(255,255,255,0.05)" }} />
-          <span style={{ color: theme.textDim, fontSize: 11, letterSpacing: "0.06em" }}>YOUR DATA IS SAFE</span>
-          <div style={{ flex: 1, height: 1, background: "rgba(255,255,255,0.05)" }} />
-        </div>
-
-        {/* Reassurance pills */}
-        <div style={{ display: "flex", justifyContent: "center", gap: 8, marginBottom: 32, flexWrap: "wrap" }}>
-          {["🔒 Still in your Drive", "✓ Nothing was lost"].map((t) => (
-            <span key={t} style={{
-              background: "rgba(255,255,255,0.03)",
-              border: "1px solid rgba(255,255,255,0.07)",
-              borderRadius: 20, padding: "5px 12px",
-              fontSize: 11, color: theme.textMuted,
-            }}>{t}</span>
-          ))}
-        </div>
-
-        {/* CTA button */}
-        <button
-          onClick={onSignIn}
-          onMouseEnter={() => setBtnHover(true)}
-          onMouseLeave={() => setBtnHover(false)}
-          style={{
-            width: "100%",
-            background: btnHover
-              ? "linear-gradient(135deg, #f05050, #E84545)"
-              : "linear-gradient(135deg, #E84545, #c43030)",
-            color: "#fff",
-            border: "none",
-            borderRadius: 12,
-            padding: "14px 28px",
-            fontSize: 14,
-            fontFamily: "'DM Sans', sans-serif",
-            fontWeight: 700,
-            cursor: "pointer",
-            boxShadow: btnHover
-              ? "0 8px 32px rgba(232,69,69,0.45)"
-              : "0 4px 20px rgba(232,69,69,0.3)",
-            transform: btnHover ? "translateY(-1px)" : "translateY(0)",
-            transition: "all 0.2s cubic-bezier(0.34,1.56,0.64,1)",
-            display: "flex", alignItems: "center", justifyContent: "center", gap: 10,
-          }}
-        >
-          <GoogleIcon />
-          Sign in with Google
-        </button>
-      </div>
-    </div>
-  );
-}
-
-function GoogleIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 48 48" aria-hidden="true">
-      <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
-      <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
-      <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
-      <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.18 1.48-4.97 2.35-8.16 2.35-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
-    </svg>
   );
 }

@@ -140,7 +140,7 @@ function LoginScreen({ onSignIn }) {
 
           <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 40 }}>
             {[
-              { icon: "🔒", text: "Private — tasks live in your Google Drive, not our servers" },
+              { icon: "🔒", text: "Private — your tasks are stored securely in our database" },
               { icon: "⚡", text: "Brain dump first, prioritise later" },
               { icon: "🌐", text: "Works on any device, no install needed" },
             ].map((f) => (
@@ -214,7 +214,7 @@ function LoginScreen({ onSignIn }) {
           {[
             { step: "01", title: "Brain dump",  body: "Capture everything on your mind in one go — one task per line, no thinking required.", accent: "#E84545" },
             { step: "02", title: "Prioritise",  body: "Assign each task to a quadrant. Flow shows you exactly what to do first, schedule, delegate, or drop.", accent: "#F5A623" },
-            { step: "03", title: "Execute",     body: "Work through your tasks. Track progress, add notes, set deadlines — all saved privately to your Drive.", accent: "#3DD68C" },
+            { step: "03", title: "Execute",     body: "Work through your tasks. Track progress, add notes, set deadlines — all saved securely to your account.", accent: "#3DD68C" },
           ].map((s) => (
             <div key={s.step} style={{
               padding: "28px 24px",
@@ -237,7 +237,7 @@ function LoginScreen({ onSignIn }) {
           Ready to find your flow?
         </div>
         <p style={{ color: "#4A5568", fontSize: 14, marginBottom: 32, lineHeight: 1.7 }}>
-          Sign in once. Your tasks live in your Drive forever.
+          Sign in once. Your tasks are saved to your account forever.
         </p>
         <button
           onClick={onSignIn}
